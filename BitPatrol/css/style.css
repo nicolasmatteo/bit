@@ -1,0 +1,539 @@
+/* ============================================================
+   VANGUARDIA — capa de presentación
+   Rótulos de cartón crema sobre telón granate, tinta negra gruesa
+   y sombras duras desplazadas. Nada de degradés en los bordes:
+   en 1936 el volumen se dibujaba, no se difuminaba.
+   ============================================================ */
+
+:root{
+  --ink:       #191310;
+  --ink-soft:  #3a2a1e;
+  --paper:     #f6e7c4;
+  --paper-lo:  #d9c299;
+  --paper-dim: #7a6448;
+  --red:       #c9382f;
+  --red-deep:  #8e241f;
+  --gold:      #e8a63d;
+  --teal:      #2fb5ab;
+  --pink:      #ff6ec7;   /* el rosa del parry: no se usa para nada más */
+  --cyan:      #2f9fb8;   /* encriptación */
+  --curtain:   #2a1210;
+  --ease:      cubic-bezier(.34,1.3,.5,1);
+
+  /* grano de emulsión, reutilizado por varias capas */
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.42'/%3E%3C/svg%3E");
+}
+
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+
+body{
+  background:var(--curtain);
+  color:var(--ink);
+  font-family:'Special Elite','Courier New',monospace;
+  overflow:hidden;
+  overscroll-behavior:none;
+  -webkit-font-smoothing:antialiased;
+  -webkit-tap-highlight-color:transparent;
+}
+
+#stage{
+  position:fixed;
+  inset:0;
+  overflow:hidden;
+  background:var(--curtain);
+}
+
+#game{
+  display:block;
+  width:100%;
+  height:100%;
+  touch-action:none;
+}
+
+.display{
+  font-family:'Bowlby One SC','Rye',Georgia,serif;
+  font-weight:400;
+  text-transform:uppercase;
+}
+
+/* ---------------------------------------------- superposición */
+
+.overlay{
+  position:absolute;
+  inset:0;
+  display:grid;
+  place-items:center;
+  padding:max(1.6rem, env(safe-area-inset-top)) 1.25rem max(1.6rem, env(safe-area-inset-bottom));
+  background:
+    radial-gradient(120% 95% at 50% 38%, rgba(96,32,26,.80) 0%, rgba(42,18,16,.94) 58%, rgba(20,10,9,.985) 100%);
+  transition:opacity .4s var(--ease), visibility .4s;
+  z-index:5;
+  overflow-y:auto;
+}
+/* pátina de película, también sobre la interfaz */
+.overlay::after{
+  content:'';
+  position:absolute;
+  inset:-50%;
+  background-image:var(--grain);
+  opacity:.16;
+  pointer-events:none;
+  animation:jitter .6s steps(1) infinite;
+}
+.overlay.is-hidden{
+  opacity:0;
+  visibility:hidden;
+  pointer-events:none;
+}
+
+@keyframes jitter{
+  0%  {transform:translate3d(0,0,0)}
+  25% {transform:translate3d(-2%,1.5%,0)}
+  50% {transform:translate3d(1.5%,-1%,0)}
+  75% {transform:translate3d(-1%,-2%,0)}
+  100%{transform:translate3d(2%,1%,0)}
+}
+
+/* ---------------------------------------------- el rótulo */
+
+.panel{
+  position:relative;
+  width:min(44rem,100%);
+  text-align:center;
+  padding:clamp(1.6rem,4vw,2.8rem) clamp(1.2rem,4vw,3rem) clamp(1.8rem,4vw,2.6rem);
+  background:
+    radial-gradient(120% 140% at 50% 0%, #fdf1d6 0%, var(--paper) 55%, #ead6ac 100%);
+  border:5px solid var(--ink);
+  border-radius:18px;
+  box-shadow:
+    9px 10px 0 rgba(25,19,16,.55),
+    inset 0 0 0 3px var(--paper),
+    inset 0 0 0 5px rgba(201,56,47,.85);
+  animation:stamp .45s var(--ease) both;
+}
+.overlay.is-hidden .panel{animation:none}
+
+/* el cartón también tiene grano */
+.panel::before{
+  content:'';
+  position:absolute;
+  inset:0;
+  border-radius:13px;
+  background-image:var(--grain);
+  opacity:.14;
+  pointer-events:none;
+  mix-blend-mode:multiply;
+}
+
+@keyframes stamp{
+  from{opacity:0;transform:scale(.88) rotate(-1.2deg)}
+  to  {opacity:1;transform:none}
+}
+
+/* esquinas: cuatro estrellas de imprenta */
+.corner{
+  position:absolute;
+  width:.85rem;height:.85rem;
+  background:var(--red);
+  border:2px solid var(--ink);
+  border-radius:3px;
+  transform:rotate(45deg);
+}
+.corner--tl{top:.6rem;left:.6rem}
+.corner--tr{top:.6rem;right:.6rem}
+.corner--bl{bottom:.6rem;left:.6rem}
+.corner--br{bottom:.6rem;right:.6rem}
+
+.eyebrow{
+  font-family:'Rye',Georgia,serif;
+  font-size:clamp(.6rem,1.6vw,.72rem);
+  letter-spacing:.3em;
+  text-indent:.3em;
+  text-transform:uppercase;
+  color:var(--red-deep);
+  margin-bottom:.9rem;
+}
+
+h1.display{
+  font-size:clamp(2.2rem,8vw,4.4rem);
+  line-height:.94;
+  letter-spacing:.02em;
+  color:var(--paper);
+  /* el trazo va centrado en los navegadores sin `paint-order`, así que se queda
+     en 3 px: suficiente para el contorno, no tanto como para comerse la letra */
+  -webkit-text-stroke:3px var(--ink);
+  paint-order:stroke fill;
+  text-shadow:4px 5px 0 rgba(201,56,47,.9);
+}
+
+h1.display em{
+  display:block;
+  font-style:normal;
+  font-family:'Rye',Georgia,serif;
+  font-size:.26em;
+  letter-spacing:.24em;
+  text-indent:.24em;
+  color:var(--ink);
+  -webkit-text-stroke:0;
+  text-shadow:none;
+  margin-top:1rem;
+}
+
+.rule{
+  width:9rem;
+  height:4px;
+  margin:1.4rem auto;
+  border-radius:2px;
+  background:var(--ink);
+  position:relative;
+}
+.rule::before,.rule::after{
+  content:'';
+  position:absolute;
+  top:50%;
+  width:.5rem;height:.5rem;
+  background:var(--red);
+  border:2px solid var(--ink);
+  transform:translateY(-50%) rotate(45deg);
+}
+.rule::before{left:-.6rem}
+.rule::after{right:-.6rem}
+
+.lede{
+  font-size:clamp(.82rem,1.7vw,.94rem);
+  line-height:1.85;
+  color:var(--ink-soft);
+  max-width:32rem;
+  margin:0 auto;
+}
+.lede b{color:var(--ink)}
+.lede i{color:var(--red-deep);font-style:normal;font-weight:700}
+.lede .sep{display:block;height:1rem}
+
+/* ---------------------------------------------- estadísticas */
+
+.stats{
+  max-width:23rem;
+  margin:1.8rem auto 0;
+  text-align:left;
+  font-size:.78rem;
+}
+.stats div{
+  display:flex;
+  align-items:baseline;
+  gap:.5rem;
+  padding:.45rem 0;
+}
+.stats div + div{border-top:2px dotted rgba(25,19,16,.28)}
+.stats dt{
+  text-transform:uppercase;
+  letter-spacing:.14em;
+  font-size:.66rem;
+  color:var(--paper-dim);
+  white-space:nowrap;
+}
+.stats .lead{
+  flex:1;
+  border-bottom:2px dotted rgba(25,19,16,.24);
+  transform:translateY(-.22em);
+}
+.stats dd{
+  font-family:'Bowlby One SC',Georgia,serif;
+  font-size:1rem;
+  color:var(--ink);
+}
+.stats dd.good{color:var(--red)}
+
+/* ---------------------------------------------- expediente de amenazas */
+
+/* el rótulo se ensancha para la grilla; en el resto de las pantallas no */
+.panel.is-wide{width:min(66rem,100%)}
+
+.dossier{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(11.5rem,1fr));
+  gap:1rem;
+  margin:1.8rem 0 0;
+  text-align:left;
+}
+.dossier[hidden]{display:none}
+
+/* cada ficha es un recorte de cartón más claro, torcido apenas: pegado a mano */
+.threat{
+  position:relative;
+  padding:.7rem .8rem .9rem;
+  background:#fdf4df;
+  border:3px solid var(--ink);
+  border-radius:10px;
+  box-shadow:4px 5px 0 rgba(25,19,16,.4);
+  animation:stamp .45s var(--ease) both;
+}
+/* `rotate` y no `transform`: la animación stamp termina en transform:none y
+   queda fija, así que una rotación por transform se perdía */
+.threat:nth-child(odd){rotate:-.6deg}
+.threat:nth-child(even){rotate:.5deg}
+.threat:nth-child(2){animation-delay:.04s}
+.threat:nth-child(3){animation-delay:.08s}
+.threat:nth-child(4){animation-delay:.12s}
+.threat:nth-child(5){animation-delay:.16s}
+.threat:nth-child(6){animation-delay:.2s}
+.threat:nth-child(7){animation-delay:.24s}
+.threat:nth-child(8){animation-delay:.28s}
+.threat:nth-child(9){animation-delay:.32s}
+.threat:nth-child(10){animation-delay:.36s}
+.threat:nth-child(11){animation-delay:.4s}
+
+/* los jefes llevan el borde rojo del rótulo, para que se note el rango */
+.threat--boss{
+  box-shadow:4px 5px 0 rgba(25,19,16,.4), inset 0 0 0 3px rgba(201,56,47,.85);
+}
+
+.threat__art{
+  display:block;
+  width:100%;
+  aspect-ratio:150 / 104;
+  border:2px solid var(--ink);
+  border-radius:6px;
+  /* fondo de pantalla vieja: los enemigos tienen tinta y contorno, sobre
+     oscuro se leen como en el juego */
+  background:radial-gradient(90% 90% at 50% 40%, #2e4550 0%, #16222a 100%);
+}
+
+.threat__tag{
+  margin-top:.55rem;
+  font-family:'Rye',Georgia,serif;
+  font-size:.56rem;
+  letter-spacing:.18em;
+  text-transform:uppercase;
+  color:var(--red-deep);
+}
+
+.threat__name{
+  margin-top:.2rem;
+  font-size:.98rem;
+  line-height:1.05;
+  color:var(--ink);
+}
+
+.threat__text{
+  margin-top:.4rem;
+  font-size:.74rem;
+  line-height:1.55;
+  color:var(--ink-soft);
+}
+
+@media (prefers-reduced-motion: reduce){
+  .threat{animation:none;rotate:none}
+}
+
+/* ---------------------------------------------- botón */
+
+.cta{
+  margin-top:2rem;
+  padding:.72em 2.4em;
+  background:var(--red);
+  border:4px solid var(--ink);
+  border-radius:999px;
+  color:var(--paper);
+  font-family:'Bowlby One SC',Georgia,serif;
+  font-size:clamp(.95rem,2.4vw,1.15rem);
+  letter-spacing:.12em;
+  text-indent:.12em;
+  text-transform:uppercase;
+  cursor:pointer;
+  box-shadow:0 6px 0 var(--ink);
+  transition:background .18s var(--ease), transform .12s var(--ease), box-shadow .12s var(--ease);
+}
+.cta:hover,.cta:focus-visible{
+  background:var(--gold);
+  color:var(--ink);
+  outline:none;
+}
+.cta:active{
+  transform:translateY(5px);
+  box-shadow:0 1px 0 var(--ink);
+}
+
+.hint{
+  margin-top:1.5rem;
+  font-size:.66rem;
+  letter-spacing:.06em;
+  color:var(--paper-dim);
+  line-height:2.5;
+  text-transform:uppercase;
+}
+.hint b{color:var(--red-deep)}
+.hint kbd{
+  font-family:'Bowlby One SC',Georgia,serif;
+  font-size:.66rem;
+  background:var(--paper);
+  border:2px solid var(--ink);
+  border-radius:4px;
+  box-shadow:0 2px 0 var(--ink);
+  padding:.12em .45em .2em;
+  color:var(--ink);
+  margin:0 .15em;
+}
+
+/* ---------------------------------------------- el teclado de la portada
+   Las teclas se dibujan donde están en el teclado de verdad, con el escalón
+   de cada fila: la mano se apoya en la figura, no en la lista. */
+
+.keys{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:.9rem;
+  line-height:1;
+}
+.keys__hands{
+  display:flex;
+  justify-content:center;
+  align-items:flex-start;
+  gap:clamp(1.1rem, 7vw, 3.6rem);
+  flex-wrap:wrap;
+}
+
+.hand{display:flex;flex-direction:column;align-items:flex-start;gap:.3rem}
+.hand__t{
+  align-self:center;
+  margin-bottom:.35rem;
+  font-family:'Bowlby One SC',Georgia,serif;
+  font-size:.52rem;
+  letter-spacing:.16em;
+  line-height:1.4;
+  color:var(--red-deep);
+}
+
+.krow{display:flex;gap:.3rem}
+/* el escalón de las filas, igual que en el teclado físico */
+.krow--home{margin-left:.85rem}
+.krow--low {margin-left:1.7rem}
+.krow--u   {margin-left:.55rem}
+
+.key{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:.22em;
+  min-width:3.5rem;
+  padding:.38rem .4rem .42rem;
+  background:var(--paper);
+  border:2px solid var(--ink);
+  border-radius:5px;
+  box-shadow:0 3px 0 var(--ink);
+  color:var(--ink);
+  font-family:'Bowlby One SC',Georgia,serif;
+  line-height:1;
+}
+.key b{font-size:.7rem;letter-spacing:.05em}
+.key i{
+  font-style:normal;
+  font-size:.48rem;
+  letter-spacing:.06em;
+  line-height:1.2;
+  color:var(--paper-dim);
+  white-space:nowrap;
+}
+.key--wide{min-width:5rem}
+.key--bar {min-width:min(19rem, 78vw)}
+/* el rosa significa lo mismo en todas las capas: parry */
+.key--pink{background:var(--pink);color:var(--paper)}
+.key--pink i{color:var(--paper)}
+
+.keys__alt{
+  max-width:30rem;
+  font-size:.56rem;
+  line-height:2.2;
+  color:var(--paper-dim);
+  text-align:center;
+}
+.keys__alt .sep{display:block;height:.35rem}
+
+/* con dedos en vez de teclado, el dibujo del teclado sobra */
+.keys__touch{display:none}
+@media (pointer: coarse){
+  .keys{display:none}
+  .keys__touch{display:block}
+}
+@media (max-width: 30rem), (max-height: 34rem){
+  .key{min-width:2.9rem;padding:.3rem .3rem .34rem}
+  .key b{font-size:.62rem}
+  .key i{font-size:.44rem}
+  .key--wide{min-width:4.1rem}
+}
+
+/* ---------------------------------------------- chip de sonido */
+
+.chip{
+  position:absolute;
+  right:max(.9rem, env(safe-area-inset-right));
+  bottom:max(.9rem, env(safe-area-inset-bottom));
+  z-index:6;
+  background:var(--paper);
+  border:3px solid var(--ink);
+  border-radius:999px;
+  box-shadow:0 3px 0 var(--ink);
+  color:var(--ink);
+  font-family:'Bowlby One SC',Georgia,serif;
+  font-size:.62rem;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  padding:.4em 1em .45em;
+  cursor:pointer;
+  opacity:.72;
+  transition:opacity .2s var(--ease), transform .12s var(--ease), box-shadow .12s var(--ease);
+}
+.chip:hover{opacity:1}
+.chip:active{transform:translateY(2px);box-shadow:0 1px 0 var(--ink)}
+.chip.is-off{background:var(--paper-lo);color:var(--red-deep)}
+
+/* ---------------------------------------------- táctil */
+
+.touch{
+  position:absolute;
+  inset:auto 0 0 0;
+  z-index:4;
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-end;
+  padding:1rem max(1rem, env(safe-area-inset-left)) max(1.4rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-right));
+  pointer-events:none;
+}
+.touch[hidden]{display:none}
+.tpad,.tacts{display:flex;gap:.6rem;align-items:flex-end}
+/* con dash, parry y purga el racimo de acciones creció: que envuelva en vez de
+   desbordar la pantalla en un teléfono angosto */
+.tacts{flex-wrap:wrap;justify-content:flex-end;max-width:62vw}
+
+/* guantes blancos: círculo crema, borde de tinta y sombra dura */
+.tbtn{
+  pointer-events:auto;
+  width:3.5rem;height:3.5rem;
+  border-radius:50%;
+  border:3px solid var(--ink);
+  background:var(--paper);
+  box-shadow:0 4px 0 var(--ink);
+  color:var(--ink);
+  font-size:1rem;
+  display:grid;place-items:center;
+  user-select:none;
+  transition:transform .1s var(--ease), box-shadow .1s var(--ease), background .1s linear;
+}
+.tbtn--lg{width:4.5rem;height:4.5rem;background:var(--gold)}
+.tbtn--sm{width:2.9rem;height:2.9rem;font-size:.85rem}
+/* el parry es rosa acá también: el color significa lo mismo en toda la pantalla */
+.tbtn--pink{background:var(--pink);color:var(--paper)}
+.tbtn.is-down{
+  background:var(--red);
+  color:var(--paper);
+  transform:translateY(4px);
+  box-shadow:0 0 0 var(--ink);
+}
+
+@media (prefers-reduced-motion: reduce){
+  *{animation-duration:.01ms !important;transition-duration:.01ms !important}
+  .overlay::after{animation:none}
+}

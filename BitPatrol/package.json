@@ -1,0 +1,13 @@
+{
+  "name": "bit-patrol",
+  "version": "1.0.0",
+  "description": "Plataformas de acción en la red. Once sectores, un bit inspector, un parry rosa contra todo lo corrupto.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "npx --yes serve . -l 8080",
+    "validate": "node tools/validate-levels.mjs"
+  },
+  "keywords": ["juego", "canvas", "plataformas", "ciberseguridad", "github-pages"],
+  "license": "MIT"
+}

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>BIT PATROL — Protocolo Ceniza</title>
+<meta name="description" content="Plataformas de acción en la red. Once sectores, un bit inspector, un parry rosa contra todo lo corrupto.">
+<meta name="theme-color" content="#1c0f0c">
+
+<meta property="og:title" content="BIT PATROL">
+<meta property="og:description" content="Plataformas de acción en la red. Once sectores, un bit inspector, un parry rosa contra todo lo corrupto.">
+<meta property="og:type" content="website">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bowlby+One+SC&family=Rye&family=Special+Elite&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./css/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23f6e7c4'/%3E%3Cpath d='M16 3l3.6 8.6 9.4.8-7.1 6.2 2.1 9.2L16 23l-8 4.8 2.1-9.2L3 12.4l9.4-.8z' fill='%23c9382f' stroke='%23191310' stroke-width='1.6' stroke-linejoin='round'/%3E%3C/svg%3E">
+</head>
+<body>
+
+<main id="stage">
+  <canvas id="game" aria-label="Escenario del juego"></canvas>
+
+  <!-- Capa de interfaz: un rótulo de cartón sobre el telón -->
+  <section id="overlay" class="overlay">
+    <div class="panel">
+      <span class="corner corner--tl" aria-hidden="true"></span>
+      <span class="corner corner--tr" aria-hidden="true"></span>
+      <span class="corner corner--bl" aria-hidden="true"></span>
+      <span class="corner corner--br" aria-hidden="true"></span>
+      <p class="eyebrow" id="ovEyebrow">Protocolo</p>
+      <h1 class="display" id="ovTitle">Bit Patrol</h1>
+      <div class="rule" aria-hidden="true"></div>
+      <p class="lede" id="ovText"></p>
+      <dl class="stats" id="ovStats" hidden></dl>
+      <div class="dossier" id="ovDossier" hidden></div>
+      <button class="cta" id="ovBtn" type="button">Comenzar</button>
+      <div class="hint" id="ovHint"></div>
+    </div>
+  </section>
+
+  <!-- Controles táctiles (sólo punteros gruesos) -->
+  <section id="touch" class="touch" hidden aria-hidden="true">
+    <div class="tpad">
+      <button class="tbtn" data-key="left">◀</button>
+      <button class="tbtn" data-key="right">▶</button>
+    </div>
+    <div class="tacts">
+      <button class="tbtn tbtn--sm" data-key="weaponNext" title="Cambiar de herramienta">⇄</button>
+      <button class="tbtn tbtn--sm" data-key="grenade" title="Granada">✦</button>
+      <button class="tbtn tbtn--sm" data-key="purge" title="Purga">◍</button>
+      <button class="tbtn tbtn--sm" data-key="dash" title="Dash de encriptación">»</button>
+      <button class="tbtn tbtn--pink" data-key="parry" title="Parry">✹</button>
+      <button class="tbtn" data-key="fire">◉</button>
+      <button class="tbtn tbtn--sm" data-key="aimUp" title="Apuntar arriba">↑</button>
+      <button class="tbtn tbtn--lg" data-key="jump">▲</button>
+    </div>
+  </section>
+
+  <button id="soundToggle" class="chip" type="button" title="Silenciar (M)">Sonido</button>
+</main>
+
+<noscript>
+  <p style="padding:2rem;font-family:sans-serif;color:#f6e7c4">
+    Este juego necesita JavaScript habilitado.
+  </p>
+</noscript>
+
+<script type="module" src="./js/main.js"></script>
+</body>
+</html>
