@@ -49,7 +49,9 @@ export function buildLevel(level) {
         const x = c * TS, y = r * TS, w = (end - c + 1) * TS;
 
         if (ch === '=') G.oneways.push({ x, y, w, h: 6 });
-        if (ch === '~') G.hazards.push({ x, y: y + 3, w, h: TS - 3, row: r, col: c });
+        /* el líquido entra con la caja del tile entera; el hundido de la
+           superficie se aplica después, una sola vez por charco */
+        if (ch === '~') G.hazards.push({ x, y, w, h: TS });
         if (ch === '^') G.spikes.push({ x, y: y + TS - 9, w, h: 9 });
         if (ch === '-') addMover(x, y, w, 'h');
 
@@ -57,6 +59,8 @@ export function buildLevel(level) {
       } else c++;
     }
   }
+
+  G.hazards = poolHazards(G.hazards);
 
   /* --- paso 3: tiradas verticales (rieles) --- */
   for (let c = 0; c < cols; c++) {
@@ -156,6 +160,39 @@ export function buildLevel(level) {
   G.roster = [...new Set(G.enemies.map(e => e.type))];
 
   if (!G.goal) console.warn('[bit-patrol] el nivel no tiene salida (G)');
+}
+
+/**
+ * Junta las tiradas de líquido en charcos.
+ *
+ * La pasada de arriba busca tiradas horizontales, una por fila, así que un
+ * charco de cuatro filas salía partido en cuatro rectángulos apilados. Eso no
+ * se notaba en la colisión —el área es la misma— pero sí en el dibujo: cada
+ * rectángulo se pintaba como un charco independiente, con su gradiente y, sobre
+ * todo, con su propia superficie ondulada y su línea de tinta. Cuatro líneas de
+ * tinta atravesando el líquido es exactamente lo que lo hacía ver como franjas
+ * apiladas en vez de como un cuerpo. En todo el juego eran 184 superficies
+ * dibujadas donde correspondían 46.
+ *
+ * Se pegan las que comparten columna y ancho, que en estos mapas son todas.
+ * Dos beneficios de yapa: la colisión mira cuatro veces menos cajas, y
+ * desaparece el hueco de 3px que quedaba entre fila y fila —el hundido de la
+ * superficie se aplicaba a cada tirada, así que adentro del charco había
+ * rendijas sin líquido.
+ */
+function poolHazards(runs) {
+  runs.sort((a, b) => a.x - b.x || a.w - b.w || a.y - b.y);
+  const pools = [];
+  for (const z of runs) {
+    const prev = pools[pools.length - 1];
+    if (prev && prev.x === z.x && prev.w === z.w && prev.y + prev.h === z.y) prev.h += z.h;
+    else pools.push(z);
+  }
+  /* El hundido de la superficie, ahora una sola vez y sólo arriba: el líquido
+     no mata en los primeros 3px, que es el margen que hace que rozar el borde
+     de un salto no sea muerte instantánea. */
+  for (const p of pools) { p.y += 3; p.h -= 3; }
+  return pools;
 }
 
 function mkPickup(kind, x, foot) {

@@ -303,64 +303,99 @@ export function drawTerrain(ctx) {
   }
 }
 
-/** Líquido: se anima, así que va fuera del prerender. */
+/**
+ * Líquido: se anima, así que va fuera del prerender.
+ *
+ * Cada charco es un cuerpo entero (ver poolHazards en world.js), no una pila de
+ * rectángulos por fila, así que acá se dibuja una sola superficie, un solo
+ * gradiente de arriba a abajo y una sola nube de burbujas. Eso solo ya lo saca
+ * de parecer franjas apiladas; lo demás es darle volumen a algo que ahora tiene
+ * cuatro tiles de hondo y antes tenía menos de uno.
+ *
+ * La onda se calcula con la posición en el MUNDO y no con la del charco: dos
+ * charcos pegados o partidos por una columna siguen la misma ola, así que la
+ * junta no se ve. Es la misma razón por la que hay dos senos y no uno — un seno
+ * solo tiene un período obvio, y el ojo lo lee como un patrón repetido, que es
+ * justo el defecto que se vino a sacar.
+ */
+const onda = (x, t) => Math.sin(x * 0.09 + t * 0.045) * 1.4
+                     + Math.sin(x * 0.037 - t * 0.021) * 1.1;
+
 export function drawHazards(ctx) {
   const th = G.theme, t = G.tick;
   for (const z of G.hazards) {
     if (z.x + z.w < G.cam.x - 40 || z.x > G.cam.x + G.view.w + 40) continue;
-    const top = z.y + Math.sin(z.x * 0.09 + t * 0.045) * 1.4;
+    const fondo = z.y + z.h;
+    const top = z.y + onda(z.x, t);
 
-    const g = ctx.createLinearGradient(0, top, 0, z.y + z.h);
+    /* el cuerpo: tres paradas en vez de dos. Con un charco hondo, dos dejaban
+       una rampa plana; la del medio mete la caída de luz cerca de la superficie,
+       que es donde pasa de verdad. */
+    const g = ctx.createLinearGradient(0, top, 0, fondo);
     g.addColorStop(0, th.liquid[1]);
+    g.addColorStop(0.28, mix(th.liquid[1], th.liquid[0], 0.55));
     g.addColorStop(1, th.liquid[0]);
     ctx.fillStyle = g;
     ctx.beginPath();
-    ctx.moveTo(z.x, top);
-    for (let x = 0; x <= z.w; x += 5) {
-      ctx.lineTo(z.x + x, z.y + Math.sin((z.x + x) * 0.09 + t * 0.045) * 1.4);
-    }
-    ctx.lineTo(z.x + z.w, z.y + z.h);
-    ctx.lineTo(z.x, z.y + z.h);
+    ctx.moveTo(z.x, z.y + onda(z.x, t));
+    for (let x = 5; x <= z.w; x += 5) ctx.lineTo(z.x + x, z.y + onda(z.x + x, t));
+    ctx.lineTo(z.x + z.w, fondo);
+    ctx.lineTo(z.x, fondo);
     ctx.closePath();
     ctx.fill();
 
-    /* la superficie va dibujada: primero tinta, después la cresta de color */
-    ctx.beginPath();
-    for (let x = 0; x <= z.w; x += 5) {
-      const yy = z.y + Math.sin((z.x + x) * 0.09 + t * 0.045) * 1.4;
-      x === 0 ? ctx.moveTo(z.x, yy) : ctx.lineTo(z.x + x, yy);
+    /* todo lo que sigue vive adentro del charco */
+    ctx.save();
+    ctx.clip();
+
+    /* sombra del fondo: el cuerpo se cierra hacia abajo en vez de cortarse */
+    const sombra = ctx.createLinearGradient(0, fondo - 18, 0, fondo);
+    sombra.addColorStop(0, rgba(INK, 0));
+    sombra.addColorStop(1, rgba(INK, 0.35));
+    ctx.fillStyle = sombra;
+    ctx.fillRect(z.x, fondo - 18, z.w, 18);
+
+    /* burbujas: la cantidad sale del área, no del ancho. Con el charco entero
+       hecho un cuerpo, contarlas por ancho dejaba tres burbujas para ochenta
+       píxeles de profundidad. Suben desde el fondo y se apagan al llegar. */
+    const cuantas = Math.min(26, Math.round(z.w * z.h / 900));
+    for (let i = 0; i < cuantas; i++) {
+      const seed = noise2(z.x + i * 31, i * 7);
+      const vida = (t * (0.4 + seed * 0.5) + seed * 200) % 90;
+      if (vida > 70) continue;
+      const k = vida / 70;
+      const bx = z.x + seed * z.w + Math.sin(t * 0.04 + seed * 12) * 2.2;
+      const by = fondo - k * (z.h - 3);
+      ctx.fillStyle = rgba(th.liquid[2], 0.32 * (1 - k));
+      ctx.beginPath();
+      ctx.arc(bx, by, 0.8 + seed * 1.4, 0, 6.283);
+      ctx.fill();
     }
+    ctx.restore();
+
+    /* la superficie va dibujada: primero tinta, después la cresta de color.
+       Una sola por charco — cuatro de éstas apiladas eran las franjas. */
+    ctx.beginPath();
+    ctx.moveTo(z.x, z.y + onda(z.x, t));
+    for (let x = 5; x <= z.w; x += 5) ctx.lineTo(z.x + x, z.y + onda(z.x + x, t));
     ctx.strokeStyle = INK;
     ctx.lineWidth = 2.6;
     ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
     ctx.stroke();
     ctx.strokeStyle = th.liquid[2];
     ctx.lineWidth = 1.4;
     ctx.stroke();
 
+    /* halo por encima de la superficie */
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-
-    /* halo del líquido */
     const gg = ctx.createLinearGradient(0, top - 16, 0, top + 6);
     gg.addColorStop(0, rgba(th.liquid[2], 0));
     gg.addColorStop(1, rgba(th.liquid[2], 0.16));
     ctx.fillStyle = gg;
     ctx.fillRect(z.x, top - 16, z.w, 22);
     ctx.restore();
-
-    /* burbujas */
-    for (let i = 0; i < z.w / 26; i++) {
-      const seed = noise2(z.x + i * 31, i);
-      const life = (t * (0.4 + seed * 0.5) + seed * 200) % 90;
-      if (life > 70) continue;
-      const bx = z.x + seed * z.w;
-      const by = z.y + z.h - (life / 70) * z.h;
-      ctx.fillStyle = rgba(th.liquid[2], 0.3 * (1 - life / 70));
-      ctx.beginPath();
-      ctx.arc(bx, by, 0.8 + seed, 0, 6.283);
-      ctx.fill();
-    }
   }
 }
 
