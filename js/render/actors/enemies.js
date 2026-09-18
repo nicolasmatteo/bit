@@ -6,11 +6,12 @@
    telegrafía antes de atacar. Si algo no tiene ojos, no es de este juego. */
 
 import { G, P } from '../../game/state.js';
-import { C2_WARN } from '../../game/enemies.js';
-import { rgba, mix, lerp, glow } from '../../util.js';
+import { C2_WARN, C2_SHIELD, SHIELD_COLOR, troyanoMuzzle } from '../../game/enemies.js';
+import { KEYLOG } from '../../config.js';
+import { rgba, mix, lerp, glow, rnd, clamp } from '../../util.js';
 import {
-  INK, boil, inked, hose, disc, pill, shadeHalf, teeth,
-  starPath, shine, groundShadow, label, BODY,
+  INK, PAPER, PAPER_LO, boil, inked, hose, disc, pill, shadeHalf, teeth,
+  starPath, shine, groundShadow,
 } from '../ink.js';
 import { STEEL_D, LW, LWD, eye, brows } from './base.js';
 import { monarca, baron, implanteChip } from './bosses.js';
@@ -30,6 +31,9 @@ import { rootkitBug, spywareCam, adwareBlob, popupPanel, infectedAura } from './
      todos los jefes de un saque. */
 const SIN_SOMBRA = new Set([
   'phishing', 'ransomware', 'mitm', 'spyware', 'ventana', 'copia', 'monarca', 'baron',
+  /* el eco camina por el piso pero no lo toca: es una grabación, y en este juego
+     lo que no es de verdad no proyecta. La misma pista que da la copia. */
+  'eco',
 ]);
 
 export function drawEnemy(ctx, e) {
@@ -48,6 +52,7 @@ export function drawEnemy(ctx, e) {
     case 'phishing':   phishing(ctx, e, th, hostile, flash);   break;
     case 'ransomware': ransomware(ctx, e, th, hostile, flash); break;
     case 'keylogger':  keylogger(ctx, e, th, hostile, flash);  break;
+    case 'eco':        ecoShade(ctx, e, flash);                break;
     case 'gusano':     gusano(ctx, e, th, hostile, flash);     break;
     case 'bicho':      bicho(ctx, e, th, hostile, flash);      break;
     case 'monarca':    monarca(ctx, e, th, hostile, flash);    break;
@@ -69,9 +74,52 @@ export function drawEnemy(ctx, e) {
   /* el latido violeta del que tiene algo adentro */
   if (e.infected && !e.infected.dead) infectedAura(ctx, e);
 
+  /* y la burbuja del que está colgado de un C2 vivo */
+  if (e.c2 && !e.c2.dead) shieldBubble(ctx, e);
+
   if (e.telegraph > 0 && !e.boss) aimLine(ctx, e, hostile);
 }
 
+
+/**
+ * La burbuja del bot enganchado. Está siempre, muy tenue: tiene que alcanzar
+ * para que se lea "esto no se puede romper" antes de gastarle el primer tiro, y
+ * no tanto como para tapar al bicho. Cuando algo le rebota se enciende de golpe
+ * y muestra las costuras del hexágono, que es lo que la vuelve una pared y no
+ * un aura más.
+ */
+function shieldBubble(ctx, e) {
+  const k = e.shield > 0 ? e.shield / C2_SHIELD : 0;
+  const cx = e.x + e.w / 2, cy = e.y + e.h / 2;
+  const r = Math.max(e.w, e.h) * 0.62 + 3 + k * 2.5;
+  ctx.save();
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 - Math.PI / 2;
+    const px = cx + Math.cos(a) * r, py = cy + Math.sin(a) * r * 1.06;
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fillStyle = rgba(SHIELD_COLOR, 0.05 + k * 0.22);
+  ctx.fill();
+  ctx.strokeStyle = rgba(SHIELD_COLOR, 0.22 + k * 0.68);
+  ctx.lineWidth = 1 + k * 1.4;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+  /* las costuras: sólo mientras dura el rebote */
+  if (k > 0) {
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 - Math.PI / 2;
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r * 1.06);
+    }
+    ctx.strokeStyle = rgba(SHIELD_COLOR, k * 0.3);
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
 
 /* ── Botnet: servidor C2 ──
    Un gabinete de servidor con plato de antena arriba. No tiene cara de
@@ -80,6 +128,9 @@ export function drawEnemy(ctx, e) {
 function botnetNode(ctx, e, hostile, flash) {
   const x = e.x + e.w / 2, feet = e.y + e.h;
   const cmd = e.pulse > 0;
+  /* si alguno de los suyos está aguantando un tiro, el plato lo acusa: el
+     servidor es el que está pagando ese escudo */
+  const guard = !!e.links && e.links.some(b => !b.dead && b.shield > 0);
   const body = flash ? '#ffffff' : '#3e4a58';
   ctx.save();
   ctx.translate(x + boil(e.x, 0.2), feet + boil(e.x + 2, 0.2));
@@ -93,7 +144,8 @@ function botnetNode(ctx, e, hostile, flash) {
   ctx.arc(0, -36, 6, Math.PI * 1.1, Math.PI * 1.9);
   ctx.strokeStyle = INK; ctx.lineWidth = 3.4; ctx.stroke();
   ctx.strokeStyle = flash ? '#ffffff' : '#aab4bf'; ctx.lineWidth = 1.8; ctx.stroke();
-  disc(ctx, 0, -38, 1.6, cmd ? hostile : '#ffd23d', 1);
+  disc(ctx, 0, -38, 1.6, cmd ? hostile : guard ? SHIELD_COLOR : '#ffd23d', 1);
+  if (guard) glow(ctx, 0, -37, 9, SHIELD_COLOR, 0.5);
 
   /* gabinete */
   pill(ctx, -9, -30, 18, 30, 2.4);
@@ -136,14 +188,18 @@ export function drawBotnetLinks(ctx) {
       if (bot.dead) continue;
       const bx = bot.x + bot.w / 2, by = bot.y + 4;
       const mx = (ax + bx) / 2, my = Math.max(ay, by) + 22;
+      /* al rebotar un tiro el cable se enciende entero, del bot al servidor: es
+         el que contesta por qué ese disparo no entró */
+      const guard = bot.shield > 0 ? bot.shield / C2_SHIELD : 0;
       ctx.save();
       ctx.beginPath();
       ctx.moveTo(ax, ay);
       ctx.quadraticCurveTo(mx, my, bx, by);
-      ctx.strokeStyle = rgba(INK, 0.4); ctx.lineWidth = 2.6; ctx.lineCap = 'round';
+      ctx.strokeStyle = rgba(INK, 0.4); ctx.lineWidth = 2.6 + guard * 1.4; ctx.lineCap = 'round';
       ctx.stroke();
-      ctx.strokeStyle = rgba(cmd ? G.theme.hostile : '#6d8a9a', cmd ? 0.9 : 0.55);
-      ctx.lineWidth = 1.1;
+      ctx.strokeStyle = guard ? rgba(SHIELD_COLOR, 0.5 + guard * 0.5)
+                              : rgba(cmd ? G.theme.hostile : '#6d8a9a', cmd ? 0.9 : 0.55);
+      ctx.lineWidth = 1.1 + guard * 1.2;
       ctx.setLineDash([4, 4]);
       ctx.lineDashOffset = -G.tick * 0.6;
       ctx.stroke();
@@ -303,7 +359,10 @@ function muzzleOf(e) {
   if (e.type === 'spambot') return { x: e.x + e.w / 2 + e.dir * 13, y: e.y + 11 };
   // el phishing tira desde el nudo de la tanza, abajo del tórax
   if (e.type === 'phishing') return { x: e.x + e.w / 2, y: e.y + e.h / 2 + 3 };
-  return { x: e.x + e.w / 2 + e.dir * (e.w / 2), y: e.y + (e.type === 'troyano' ? 13 : 11) };
+  // el troyano tiene el cañón a media altura del cajón, y su punto es el mismo
+  // que usa la IA para tirar: no hay dos versiones de dónde está la boca
+  if (e.type === 'troyano') return troyanoMuzzle(e);
+  return { x: e.x + e.w / 2 + e.dir * (e.w / 2), y: e.y + 11 };
 }
 
 /* ── Spambot ──
@@ -511,150 +570,298 @@ export function popupWindow(ctx, x, y, w, h, seed, accent = '#3d6ea8') {
 }
 
 /* ── Troyano ──
-   Un caballo de madera con cabezota, sonrisa de tablones y ruedas chiquitas.
-   Toda la expresión está en la cabeza: el cuerpo es un barril con carga. */
+   El caballo de Troya, que acá es literal: un caballo de madera montado sobre
+   una cureña, del tamaño de una máquina de asedio. No es un bicho, es un
+   transporte — por eso lleva arnés, bridas y bulones, cosas que alguien le puso.
+
+   Lo que manda el diseño es que se pueda leer QUÉ trae adentro antes de
+   abrirlo. Tiene tres ventanillas en el costado y en cada una se ve la silueta
+   de un pasajero: la tecla del Keylogger, el ojo del Gusano, la cerradura del
+   Ransomware. Van apagadas mientras el caballo está entero y se encienden —y
+   golpean el vidrio— a medida que se le cae la vida. Cuando revienta no hay
+   sorpresa: sale exactamente lo que estabas mirando hace rato (ver spillTrojan).
+
+   Toda la expresión sigue estando en la cabeza. El cuerpo es carga. */
+
+const VENTANILLAS = [
+  { x: -13, glifo: 'tecla' },      // Keylogger
+  { x: -1,  glifo: 'ojo' },        // Gusano
+  { x: 11,  glifo: 'cerradura' },  // Ransomware
+];
+
 function troyano(ctx, e, th, hostile, flash) {
   const wood = flash ? '#ffffff' : '#b0763a';
   const dark = flash ? '#ffffff' : '#7a4f27';
+  const grano = flash ? '#ffffff' : '#c98d4e';
   const x = e.x + e.w / 2, feet = e.y + e.h, f = e.dir;
-  const roll = e.anim * 2;
+  const roll = e.anim * 1.5;
   const alert = e.telegraph > 0;
-  const open = e.hp < e.maxHp * 0.45 ? 1.4 + Math.sin(G.tick * 0.2) * 0.6 : 0;
+  /* cuánto "despertó" la carga: 0 entero, 1 a punto de reventar */
+  const carga = clamp(1 - e.hp / (e.maxHp * 0.75), 0, 1);
+  const open = carga > 0.4 ? 1.6 + Math.sin(G.tick * 0.2) * 0.8 : 0;
 
   ctx.save();
   ctx.translate(x + boil(e.x, 0.3), feet + boil(e.x + 2, 0.3));
   ctx.scale(f, 1);
 
-  /* ruedas: chicas a propósito, para que el cuerpo se vea pesado */
-  for (const wx of [-6.5, 5.5]) {
+  /* ── cureña: tres ruedas de carro, la del medio más chica ── */
+  for (const [wx, wr] of [[-15, 7], [0, 5.5], [15, 7]]) {
     ctx.save();
-    ctx.translate(wx, -3.2);
+    ctx.translate(wx, -wr - 0.5);
     ctx.rotate(roll);
     ctx.beginPath();
-    ctx.arc(0, 0, 3.2, 0, 6.283);
+    ctx.arc(0, 0, wr, 0, 6.283);
     ctx.fillStyle = dark;
     ctx.fill();
-    shadeHalf(ctx, 0, 0, 3.2, 0.2);
+    shadeHalf(ctx, 0, 0, wr, 0.22);
     ctx.strokeStyle = INK; ctx.lineWidth = LW;
     ctx.stroke();
+    /* rayos: cuatro, para que se vea girar */
     ctx.beginPath();
-    ctx.moveTo(-2.6, 0); ctx.lineTo(2.6, 0);
-    ctx.moveTo(0, -2.6); ctx.lineTo(0, 2.6);
-    ctx.lineWidth = 1;
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI;
+      ctx.moveTo(Math.cos(a) * (wr - 1.2), Math.sin(a) * (wr - 1.2));
+      ctx.lineTo(-Math.cos(a) * (wr - 1.2), -Math.sin(a) * (wr - 1.2));
+    }
+    ctx.lineWidth = 1.1;
     ctx.stroke();
+    disc(ctx, 0, 0, 1.4, grano, 0.9);
     ctx.restore();
   }
 
-  /* barril: cuerpo de tablones con las duelas marcadas */
+  /* viga del eje, de rueda a rueda */
+  pill(ctx, -20, -16, 40, 5, 1.6);
+  inked(ctx, dark, LWD);
+
+  /* ── el cajón: tablones verticales, panza leve, zunchos de hierro ── */
   ctx.beginPath();
-  ctx.moveTo(-9.5, -7);
-  ctx.quadraticCurveTo(-12, -14, -9.5, -21);
-  ctx.lineTo(8.5, -21);
-  ctx.quadraticCurveTo(11, -14, 8.5, -7);
+  ctx.moveTo(-20, -15);
+  ctx.quadraticCurveTo(-24, -32, -20, -47);
+  ctx.lineTo(15, -47);
+  ctx.quadraticCurveTo(19, -32, 15, -15);
   ctx.closePath();
   ctx.fillStyle = wood;
   ctx.fill();
-  shadeHalf(ctx, 0, -14, 11, 0.16);
-  ctx.strokeStyle = INK; ctx.lineWidth = LW + 0.3; ctx.lineJoin = 'round';
+  shadeHalf(ctx, -2, -31, 22, 0.18);
+  ctx.strokeStyle = INK; ctx.lineWidth = LW + 0.4; ctx.lineJoin = 'round';
   ctx.stroke();
+
   ctx.save();
   ctx.clip();
-  ctx.strokeStyle = rgba(INK, 0.35);
+  /* veta de los tablones */
+  ctx.strokeStyle = rgba(INK, 0.28);
   ctx.lineWidth = 1;
-  for (let i = -6; i <= 6; i += 4) {
-    ctx.beginPath(); ctx.moveTo(i, -22); ctx.lineTo(i, -6); ctx.stroke();
+  for (let i = -17; i <= 13; i += 5) {
+    ctx.beginPath(); ctx.moveTo(i, -49); ctx.lineTo(i, -13); ctx.stroke();
   }
-  /* zunchos de hierro */
-  ctx.strokeStyle = rgba(INK, 0.55);
-  ctx.lineWidth = 1.8;
-  for (const yy of [-18, -10]) {
-    ctx.beginPath(); ctx.moveTo(-12, yy); ctx.lineTo(12, yy); ctx.stroke();
+  /* zunchos con bulones */
+  for (const yy of [-42, -20]) {
+    ctx.fillStyle = rgba(INK, 0.5);
+    ctx.fillRect(-26, yy - 1.6, 48, 3.2);
+    ctx.fillStyle = rgba(grano, 0.5);
+    for (let i = -16; i <= 12; i += 7) {
+      ctx.beginPath(); ctx.arc(i, yy, 0.9, 0, 6.283); ctx.fill();
+    }
   }
   ctx.restore();
 
-  /* escotilla: se entreabre y asoman los bichos cuando está por reventar */
-  pill(ctx, -4.5, -15 - open, 9, 6.5, 1.5);
-  inked(ctx, dark, LWD);
-  if (open > 0) {
-    ctx.fillStyle = '#16190f';
-    ctx.fillRect(-3.6, -14.4 - open, 7.2, 2.6);
-    disc(ctx, -1.6, -13.2 - open, 1, '#9fe86a', 0);
-    disc(ctx, 1.8, -13.6 - open, 1, '#9fe86a', 0);
+  /* ── las tres ventanillas: acá se ve quién viene ── */
+  for (const [i, v] of VENTANILLAS.entries()) {
+    /* cada pasajero se despierta en su turno y golpea el vidrio a su ritmo */
+    const desperto = clamp(carga * 3 - i, 0, 1);
+    const tiembla = desperto > 0.3 ? Math.sin(G.tick * (0.24 + i * 0.05) + i * 2) * desperto : 0;
+    portilla(ctx, v.x, -31 + tiembla * 0.9, v.glifo, desperto, flash, dark);
   }
 
-  /* ── cabeza: grande, con hocico y sonrisa ── */
-  ctx.save();
-  ctx.translate(9, -25);
-  /* cuello corto */
-  ctx.beginPath();
-  ctx.moveTo(-4.5, 8);
-  ctx.quadraticCurveTo(-2, 2, -1, -2);
-  ctx.lineTo(4, -2);
-  ctx.quadraticCurveTo(4, 4, 2, 8);
-  ctx.closePath();
-  inked(ctx, dark, LW);
+  /* ── escotilla de carga arriba: los bulones saltan antes de reventar ── */
+  pill(ctx, -12, -51 - open, 22, 5.5, 1.8);
+  inked(ctx, dark, LWD);
+  for (let i = 0; i < 3; i++) {
+    const bx = -7 + i * 7;
+    const salta = open > 0 && (G.tick + i * 9) % 40 < 20 ? -1.4 : 0;
+    disc(ctx, bx, -48.5 - open + salta, 1.1, grano, 0.9);
+  }
+  if (open > 0) {
+    /* la rendija: adentro está oscuro y hay cosas moviéndose */
+    ctx.fillStyle = '#16190f';
+    ctx.fillRect(-10, -50 - open, 18, 2.4 + open * 0.5);
+  }
 
-  /* cráneo + hocico, de una sola pieza */
+  /* ── arnés: la correa que ata la cabeza al cajón ── */
   ctx.beginPath();
-  ctx.moveTo(-5, -1);
-  ctx.quadraticCurveTo(-6.5, -9, -1, -10.5);
-  ctx.quadraticCurveTo(6, -11.5, 9, -8);
-  ctx.quadraticCurveTo(13.5, -6.5, 12.5, -2);
-  ctx.quadraticCurveTo(11.5, 2.5, 6, 2.5);
-  ctx.quadraticCurveTo(0, 3.5, -5, -1);
+  ctx.moveTo(-4, -47);
+  ctx.quadraticCurveTo(12, -50, 17, -56);
+  ctx.strokeStyle = INK; ctx.lineWidth = 2.6; ctx.lineCap = 'round';
+  ctx.stroke();
+  ctx.strokeStyle = flash ? '#ffffff' : '#5c3a1c'; ctx.lineWidth = 1.4;
+  ctx.stroke();
+
+  /* ── cabeza ── */
+  ctx.save();
+  ctx.translate(17, -56);
+
+  /* cuello: una pieza gruesa que sale del cajón */
+  ctx.beginPath();
+  ctx.moveTo(-8, 13);
+  ctx.quadraticCurveTo(-5, 4, -3, -2);
+  ctx.lineTo(6, -2);
+  ctx.quadraticCurveTo(6, 7, 3, 13);
   ctx.closePath();
   ctx.fillStyle = wood;
   ctx.fill();
-  shadeHalf(ctx, 2, -4, 9, 0.16);
-  ctx.strokeStyle = INK; ctx.lineWidth = LW + 0.3;
+  shadeHalf(ctx, -2, 6, 8, 0.2);
+  ctx.strokeStyle = INK; ctx.lineWidth = LW + 0.2;
+  ctx.stroke();
+  /* crin: tres mechones tallados sobre el cuello */
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.moveTo(-6 + i * 1.2, 9 - i * 4);
+    ctx.quadraticCurveTo(-11 - i, 6 - i * 4, -9 - i * 1.5, 1 - i * 4);
+    ctx.strokeStyle = INK; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
+    ctx.stroke();
+    ctx.strokeStyle = dark; ctx.lineWidth = 1.2;
+    ctx.stroke();
+  }
+
+  /* cráneo y hocico, de una pieza */
+  ctx.beginPath();
+  ctx.moveTo(-7, -1);
+  ctx.quadraticCurveTo(-9, -13, -1.5, -15);
+  ctx.quadraticCurveTo(8, -16.5, 12.5, -11);
+  ctx.quadraticCurveTo(19, -9, 17.5, -2.5);
+  ctx.quadraticCurveTo(16, 3.5, 8, 3.5);
+  ctx.quadraticCurveTo(0, 5, -7, -1);
+  ctx.closePath();
+  ctx.fillStyle = wood;
+  ctx.fill();
+  shadeHalf(ctx, 3, -5, 13, 0.18);
+  ctx.strokeStyle = INK; ctx.lineWidth = LW + 0.4;
   ctx.stroke();
 
-  /* orejas */
-  for (const [ox, oy] of [[-2.5, -10], [1.5, -10.8]]) {
+  /* orejas de madera */
+  for (const [ox, oy] of [[-3.5, -14], [2, -15.2]]) {
     ctx.beginPath();
-    ctx.moveTo(ox - 1.6, oy + 1);
-    ctx.lineTo(ox, oy - 4.2);
-    ctx.lineTo(ox + 1.8, oy + 0.6);
+    ctx.moveTo(ox - 2.2, oy + 1.4);
+    ctx.lineTo(ox, oy - 6);
+    ctx.lineTo(ox + 2.6, oy + 0.8);
     ctx.closePath();
     inked(ctx, dark, LWD);
   }
 
-  /* ojo grande y ceja: el caballo está de mal humor */
-  eye(ctx, 1.4, -5.6, 3.1, 1, hostile, alert);
-  brows(ctx, 1.4, -7.6, 3, alert ? 1.5 : 0.9);
+  /* ojo grande y ceja pesada: el caballo está de muy mal humor */
+  eye(ctx, 2, -8, 4.2, 1, hostile, alert);
+  brows(ctx, 2, -11, 4.2, alert ? 2.1 : 1.3);
 
-  /* ollar y sonrisa de dientes cuadrados */
-  ctx.fillStyle = INK;
-  ctx.beginPath(); ctx.arc(10.4, -3.6, 1, 0, 6.283); ctx.fill();
+  /* brida: la correa que le cruza el hocico. Es lo que dice "esto lo armaron" */
   ctx.beginPath();
-  ctx.moveTo(4, 0.6);
-  ctx.quadraticCurveTo(7.5, 2.6, 11, 0.2);
-  ctx.strokeStyle = INK; ctx.lineWidth = 1.3; ctx.lineCap = 'round';
+  ctx.moveTo(6, -9.5); ctx.lineTo(9.5, 1.5);
+  ctx.moveTo(4.5, -2.5); ctx.quadraticCurveTo(11, -1, 15.5, -3.5);
+  ctx.strokeStyle = INK; ctx.lineWidth = 2.2; ctx.lineCap = 'round';
   ctx.stroke();
-  if (alert) teeth(ctx, 4.6, 0.6, 6, 1.6, 4);
+  ctx.strokeStyle = flash ? '#ffffff' : '#5c3a1c'; ctx.lineWidth = 1.1;
+  ctx.stroke();
+  disc(ctx, 9.5, -2.2, 1.3, grano, 0.9);
+
+  /* ollar y boca de tablones */
+  ctx.fillStyle = INK;
+  ctx.beginPath(); ctx.arc(14.5, -5, 1.3, 0, 6.283); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(6, 1.4);
+  ctx.quadraticCurveTo(10.5, 3.8, 15, 0.6);
+  ctx.strokeStyle = INK; ctx.lineWidth = 1.5; ctx.lineCap = 'round';
+  ctx.stroke();
+  if (alert) teeth(ctx, 7, 1.4, 8, 2.2, 5);
   ctx.restore();
 
-  /* escudo frontal atornillado al barril */
-  pill(ctx, 5.5, -21, 5.6, 14.5, 2.2);
+  /* ── escudo frontal atornillado al cajón: lo que obliga a rodearlo ── */
+  pill(ctx, 11, -46, 9, 31, 2.8);
   ctx.fillStyle = flash ? '#ffffff' : mix(th.rock.edge, '#ffffff', 0.25);
   ctx.fill();
-  shadeHalf(ctx, 8, -14, 7, 0.18);
-  ctx.strokeStyle = INK; ctx.lineWidth = LW;
+  shadeHalf(ctx, 15.5, -30, 11, 0.2);
+  ctx.strokeStyle = INK; ctx.lineWidth = LW + 0.2;
   ctx.stroke();
-  for (let i = 0; i < 3; i++) disc(ctx, 8.3, -18.5 + i * 5, 0.9, INK, 0);
+  for (let i = 0; i < 5; i++) disc(ctx, 15.5, -42 + i * 6, 1.1, INK, 0);
 
-  /* cañón, asomando por el costado del escudo */
-  pill(ctx, 8, -16.4, 13.5, 4.6, 2);
+  /* ── cañón, asomando por el costado del escudo. Sale de troyanoMuzzle: la
+     lógica y el dibujo comparten el punto, así que el caño apunta a donde de
+     verdad nace la bala ── */
+  pill(ctx, 16, -32.6, 12, 5.6, 2.4);
   inked(ctx, flash ? '#ffffff' : STEEL_D, LWD);
+  pill(ctx, 25, -33.6, 4, 7.6, 1.6);
+  inked(ctx, flash ? '#ffffff' : STEEL_D, LWD);
+
   ctx.restore();
 
   if (e.charge > 0) {
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    glow(ctx, x, feet - 14, 22, hostile, 0.35);
+    glow(ctx, x, feet - 30, 34, hostile, 0.35);
     ctx.restore();
   }
 }
+
+/**
+ * Una ventanilla del costado, con su pasajero adentro. `desperto` va de 0 a 1:
+ * apagado es una silueta hundida en la sombra, encendido es alguien mirando
+ * para afuera. El color de cada uno es el suyo —el violeta del Keylogger, el
+ * verde del Gusano, el cian del Ransomware— así que el aviso no hay que
+ * aprenderlo: ya lo sabés de haberlos peleado.
+ */
+function portilla(ctx, px, py, glifo, desperto, flash, dark) {
+  const luz = { tecla: '#c9a0ff', ojo: '#9fe86a', cerradura: '#6ce8ff' }[glifo];
+  ctx.save();
+  ctx.translate(px, py);
+
+  /* el marco de hierro y el vidrio */
+  disc(ctx, 0, 0, 5.2, flash ? '#ffffff' : dark, LWD);
+  ctx.beginPath();
+  ctx.arc(0, 0, 3.8, 0, 6.283);
+  ctx.fillStyle = flash ? '#ffffff' : mix('#16190f', luz, 0.1 + desperto * 0.35);
+  ctx.fill();
+
+  /* el pasajero */
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(0, 0, 3.8, 0, 6.283);
+  ctx.clip();
+  const tinta = flash ? '#ffffff' : mix(INK, luz, 0.25 + desperto * 0.6);
+  ctx.fillStyle = tinta;
+  ctx.strokeStyle = tinta;
+  ctx.lineWidth = 1.2;
+  ctx.lineJoin = 'round';
+  if (glifo === 'tecla') {
+    /* una tecla de máquina con su vástago */
+    ctx.beginPath();
+    ctx.moveTo(-2, 1.6); ctx.lineTo(2, 1.6);
+    ctx.stroke();
+    pill(ctx, -2.2, -2.4, 4.4, 3.4, 1);
+    ctx.fill();
+  } else if (glifo === 'ojo') {
+    /* la cabezota del gusano: un círculo y un ojo que mira */
+    ctx.beginPath(); ctx.arc(0, 0.4, 3, 0, 6.283); ctx.fill();
+    ctx.fillStyle = flash ? '#b0763a' : '#16190f';
+    ctx.beginPath(); ctx.arc(0.9, -0.4, 1.1, 0, 6.283); ctx.fill();
+  } else {
+    /* la cerradura del ransomware */
+    ctx.beginPath(); ctx.arc(0, -0.8, 1.5, 0, 6.283); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-1.5, 2.6); ctx.lineTo(-0.7, -0.2);
+    ctx.lineTo(0.7, -0.2); ctx.lineTo(1.5, 2.6);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+
+  /* reflejo del vidrio, y un halo cuando el de adentro ya está despierto */
+  shine(ctx, -1.4, -1.8, 1.8, 1, -0.5, 0.4);
+  if (desperto > 0.3) {
+    ctx.strokeStyle = rgba(luz, (desperto - 0.3) * 0.9);
+    ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.arc(0, 0, 5.2, 0, 6.283); ctx.stroke();
+  }
+  ctx.restore();
+}
+
 
 /* Keylogger: una máquina de escribir, y a propósito la única cosa del reparto
    que no tiene cara de bicho. Todo lo demás son criaturas redondas con dos ojos
@@ -663,16 +870,22 @@ function troyano(ctx, e, th, hostile, flash) {
    la regla de la casa. Se la reconoce de lejos por la silueta: donde los otros
    son panza, ésta es máquina.
 
-   El renglón que escribió no es adorno: `e.log` son las teclas que ya registró
-   y todavía no transmitió, y se dibujan sobre el rodillo. Eso es el aviso. */
+   Nada de lo que muestra es adorno. El renglón de la hoja es lo que ya registró,
+   el panel de arriba es lo que cree saber, y el ojo dice a quién está mirando.
+   Los tres se dibujan de lo mismo que lee su IA, así que no pueden mentir: si el
+   panel está lleno, la próxima predicción va en serio. */
 function keylogger(ctx, e, th, hostile, flash) {
   const body = flash ? '#ffffff' : '#8a77a6';
   const cap  = flash ? '#ffffff' : '#e2dccc';
   const x = e.x + e.w / 2, y = e.y + e.h / 2, s = e.surface;
-  const typing = e.state === 'registro';
+  const typing = e.state === 'registro' || e.state === 'prediccion';
   const hit = e.strike > 0 ? Math.sin((8 - e.strike) / 8 * Math.PI) : 0;
 
   ctx.save();
+  /* temblor: crece con lo que cree saber y se dispara cuando se equivoca. Es la
+     única parte del dibujo que no es limpia, y por eso se lee de lejos. */
+  const jit = e.fail > 0 ? 1.6 : Math.max(0, e.learn - 60) / 40 * 0.7;
+  if (jit > 0) ctx.translate(rnd(-jit, jit), rnd(-jit, jit));
   ctx.translate(x + boil(e.x, 0.22), y + boil(e.x + 6, 0.22));
   ctx.scale(e.dir, s);      // el eje vertical se invierte si va por el techo
 
@@ -712,19 +925,30 @@ function keylogger(ctx, e, th, hostile, flash) {
   }
 
   /* la hoja: sale del rodillo mientras escribe, y se corta al transmitir. Va
-     antes que el carro para que las teclas registradas se apoyen sobre ella */
-  if (typing || e.log.length) {
+     antes que el carro para que el renglón se apoye sobre ella */
+  if (e.log.length) {
+    const alto = 13 + Math.min(e.log.length, 7) * 0.9;
     ctx.beginPath();
     ctx.moveTo(-3, -7.2);
-    ctx.lineTo(-3.6, -13 - e.log.length * 0.9);
-    ctx.lineTo(4.4, -13 - e.log.length * 0.9);
+    ctx.lineTo(-3.6, -alto);
+    ctx.lineTo(4.4, -alto);
     ctx.lineTo(3.8, -7.2);
     ctx.closePath();
     inked(ctx, flash ? '#ffffff' : '#f6e7c4', 1.2);
+
+    /* lo escrito, en abstracto: las marcas del renglón. Lo que dicen se lee en
+       el panel de arriba, no acá — dos veces la misma información sería ruido */
+    ctx.strokeStyle = rgba(INK, 0.45); ctx.lineWidth = 0.9;
+    for (let i = 0; i < Math.min(e.log.length, 6); i++) {
+      const ly = -9.5 - i * 1.5;
+      ctx.beginPath();
+      ctx.moveTo(-2.4, ly); ctx.lineTo(1.4 + (i % 3), ly);
+      ctx.stroke();
+    }
   }
 
   /* rodillo y carro, atravesados arriba; el carro corre con el renglón */
-  const run = e.log.length / 3;
+  const run = e.log.length / KEYLOG.hist;
   ctx.save();
   ctx.translate(-2.5 + run * 5, -5.6);
   ctx.beginPath();
@@ -734,18 +958,6 @@ function keylogger(ctx, e, th, hostile, flash) {
   pill(ctx, -7.5, -3.4, 15, 3.6, 1.8);
   inked(ctx, flash ? '#ffffff' : '#4a3d5c', 1.4);
   shine(ctx, -3.5, -2.6, 3.4, 0.7, 0, 0.35);
-
-  /* el renglón registrado: una tecla por golpe, a la vista sobre el rodillo */
-  for (let i = 0; i < e.log.length; i++) {
-    const kx = -5 + i * 5;
-    const pop = i === e.log.length - 1 ? hit * 1.6 : 0;
-    pill(ctx, kx - 2, -7.6 - pop, 4, 4, 1.1);
-    inked(ctx, cap, 1.2);
-    ctx.save();
-    ctx.scale(e.dir, s);      // la letra se lee derecha, mire para donde mire
-    label(ctx, e.log[i], e.dir * kx, s * (-5.6 - pop) + 1.5, 4.4, INK, 'center', '0', 0, BODY);
-    ctx.restore();
-  }
   ctx.restore();
 
   /* ojo de vidrio sobre el carro: lo único vivo de la máquina */
@@ -769,6 +981,240 @@ function keylogger(ctx, e, th, hostile, flash) {
     }
   }
 
+  ctx.restore();
+
+  /* lo que piensa, encima de la máquina y ya fuera de su transformación: el
+     panel no se espeja ni se da vuelta en el techo, porque es información y la
+     información se lee siempre igual */
+  keyPanel(ctx, e);
+  predictionMark(ctx, e);
+}
+
+/* ── Eco: la entrada fantasma ──
+   La silueta de Bit —sombrero, gabán, la misma altura— vaciada y pasada a
+   violeta de máquina. Tiene que reconocerse como "vos" en el primer cuadro y no
+   confundirse con vos en ninguno: por eso no tiene cara, sólo una ranura de luz
+   donde iría el ojo, y el contorno se le corre en dos canales como una cinta mal
+   leída. Es una grabación, y se ve que es una grabación. */
+function ecoShade(ctx, e, flash) {
+  const x = e.x + e.w / 2, feet = e.y + e.h;
+  const fade = Math.min(1, e.life / 30);         // se apaga al final del renglón
+  const violeta = flash ? '#ffffff' : '#c9a0ff';
+  const paso = Math.sin(e.anim) * 2.2;
+
+  ctx.save();
+  ctx.globalAlpha = 0.55 + Math.sin(G.tick * 0.3) * 0.08 * fade;
+  ctx.translate(x + boil(e.x, 0.4), feet);
+  ctx.scale(e.dir, 1);
+
+  /* el desdoble de canal: la misma silueta corrida, detrás, en cian */
+  for (const [off, col, a] of [[-1.6, '#6ce8ff', 0.5], [0, violeta, 1]]) {
+    ctx.save();
+    ctx.translate(off + (off ? rnd(-0.5, 0.5) : 0), 0);
+    ctx.globalAlpha *= a;
+
+    /* piernas: dos trazos que se abren con el paso */
+    ctx.beginPath();
+    ctx.moveTo(-1.5, -11); ctx.lineTo(-1.5 - paso, -0.5);
+    ctx.moveTo(1.5, -11);  ctx.lineTo(1.5 + paso, -0.5);
+    ctx.strokeStyle = col; ctx.lineWidth = 2.6; ctx.lineCap = 'round';
+    ctx.stroke();
+
+    /* gabán: una campana simple, el rasgo que lo hace inconfundible */
+    ctx.beginPath();
+    ctx.moveTo(-5, -10);
+    ctx.quadraticCurveTo(-6.5, -17, -4, -19);
+    ctx.lineTo(4, -19);
+    ctx.quadraticCurveTo(6.5, -17, 5, -10);
+    ctx.closePath();
+    ctx.fillStyle = rgba(col, 0.22); ctx.fill();
+    ctx.strokeStyle = col; ctx.lineWidth = 1.6; ctx.lineJoin = 'round';
+    ctx.stroke();
+
+    /* cabeza y ala del sombrero */
+    ctx.beginPath();
+    ctx.arc(0, -22.5, 4.6, 0, 6.283);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-7, -25.5); ctx.lineTo(7, -25.5);
+    ctx.moveTo(-4.4, -25.5); ctx.lineTo(-3.8, -29.5);
+    ctx.lineTo(3.8, -29.5); ctx.lineTo(4.4, -25.5);
+    ctx.lineWidth = 1.8;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /* la ranura de luz donde iría el ojo: lo único lleno de toda la figura */
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = flash ? '#ffffff' : '#e9d8ff';
+  ctx.fillRect(0.4, -23.6, 3.6, 1.6);
+
+  /* barrido de cinta: una banda clara que sube por el cuerpo */
+  const scan = -((G.tick * 0.7 + e.x) % 30);
+  ctx.globalAlpha = 0.5;
+  ctx.fillStyle = rgba('#ffffff', 0.35);
+  ctx.fillRect(-7, scan, 14, 1.2);
+
+  ctx.restore();
+}
+
+const PANEL_KEYS = 5;
+
+/**
+ * Los glifos del panel: las acciones de la cinta (actions.js) traducidas a algo
+ * que se entienda de un vistazo. Van dibujados a mano y no como texto, por dos
+ * razones: la tipografía de máquina de escribir del juego no tiene flechas —
+ * saldrían cuadraditos— y porque acá todo se dibuja. A 6px de lado, un trazo
+ * limpio se lee mejor que cualquier fuente.
+ *
+ * El panel no tiene una sola letra: lo que hay que entender es qué anotó y
+ * cuánto cree saber, y eso se dice con cinco símbolos y una barra.
+ */
+function glifo(ctx, act, x, y, color) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = 1.1;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  switch (act) {
+    case '<':   // izquierda
+      ctx.moveTo(1.6, 0); ctx.lineTo(-1.6, 0);
+      ctx.moveTo(-0.3, -1.4); ctx.lineTo(-1.7, 0); ctx.lineTo(-0.3, 1.4);
+      break;
+    case '>':   // derecha
+      ctx.moveTo(-1.6, 0); ctx.lineTo(1.6, 0);
+      ctx.moveTo(0.3, -1.4); ctx.lineTo(1.7, 0); ctx.lineTo(0.3, 1.4);
+      break;
+    case '^':   // salto
+      ctx.moveTo(0, 1.7); ctx.lineTo(0, -1.6);
+      ctx.moveTo(-1.4, -0.3); ctx.lineTo(0, -1.7); ctx.lineTo(1.4, -0.3);
+      break;
+    case '*':   // ataque: la cruz de una mira
+      ctx.moveTo(-1.5, -1.5); ctx.lineTo(1.5, 1.5);
+      ctx.moveTo(1.5, -1.5); ctx.lineTo(-1.5, 1.5);
+      break;
+    case '~':   // dash: dos cuñas de velocidad
+      ctx.moveTo(-1.8, -1.4); ctx.lineTo(-0.2, 0); ctx.lineTo(-1.8, 1.4);
+      ctx.moveTo(0.4, -1.4); ctx.lineTo(2, 0); ctx.lineTo(0.4, 1.4);
+      break;
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+/**
+ * El panel del Keylogger: las últimas teclas anotadas y la barra de aprendizaje.
+ * Aparece sólo cuando está mirando a alguien, así que verlo encendido ya es la
+ * primera información — y se apaga solo cuando lo perdés de vista.
+ */
+function keyPanel(ctx, e) {
+  const on = e.state !== 'patrulla' && (e.log.length > 0 || e.learn > 0);
+  if (!on) return;
+
+  const k = clamp(e.learn / 100, 0, 1);
+  const locked = e.state === 'prediccion' || e.state === 'ataque';
+  /* violeta mientras junta, hostil cuando ya fijó el punto: el color dice en
+     cuál de las dos etapas está sin que haya que contar nada */
+  const tinta = locked ? G.theme.hostile : '#c9a0ff';
+
+  const w = 40, h = 17;
+  const cx = e.x + e.w / 2;
+  /* siempre por encima de la máquina, vaya por el piso o por el techo */
+  const top = (e.surface > 0 ? e.y : e.y + e.h) - 25;
+
+  ctx.save();
+  if (e.fail > 0) ctx.translate(rnd(-1.4, 1.4), rnd(-1.4, 1.4));
+  ctx.translate(cx - w / 2, top);
+
+  /* la chapita: papel con contorno de tinta, como las placas del HUD */
+  pill(ctx, 0, 0, w, h, 2.4);
+  inked(ctx, rgba(PAPER, 0.92), 1.4);
+
+  /* fila de teclas: las últimas PANEL_KEYS, la más nueva a la derecha */
+  const vistas = e.log.slice(-PANEL_KEYS);
+  for (let i = 0; i < PANEL_KEYS; i++) {
+    const kx = 3 + i * 7, ky = 2.4;
+    const act = vistas[i - (PANEL_KEYS - vistas.length)];
+    const nueva = act !== undefined && i === PANEL_KEYS - 1 && e.strike > 0;
+    pill(ctx, kx, ky, 6, 6, 1.2);
+    ctx.fillStyle = act === undefined ? rgba(PAPER_LO, 0.5)
+                  : nueva ? tinta : rgba('#e2dccc', 1);
+    ctx.fill();
+    ctx.strokeStyle = rgba(INK, act === undefined ? 0.3 : 0.75);
+    ctx.lineWidth = 0.9;
+    ctx.stroke();
+    if (act !== undefined) glifo(ctx, act, kx + 3, ky + 3, nueva ? PAPER : INK);
+  }
+
+  /* la barra: es el porcentaje de acierto, no un reloj. Si sube es porque le
+     estás dando la razón; si baja es porque lo sorprendiste. */
+  const bw = w - 6;
+  pill(ctx, 3, h - 4.6, bw, 3, 1.5);
+  ctx.fillStyle = rgba(INK, 0.18); ctx.fill();
+  if (k > 0.02) {
+    ctx.save();
+    pill(ctx, 3, h - 4.6, bw, 3, 1.5);
+    ctx.clip();
+    ctx.fillStyle = tinta;
+    ctx.fillRect(3, h - 4.6, bw * k, 3);
+    ctx.restore();
+  }
+  /* la marca del umbral: pasado ese punto se anima a predecir */
+  const marca = 3 + bw * (KEYLOG.ready / 100);
+  ctx.beginPath();
+  ctx.moveTo(marca, h - 5.4); ctx.lineTo(marca, h - 0.8);
+  ctx.strokeStyle = rgba(INK, 0.55); ctx.lineWidth = 0.8;
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+/**
+ * Dónde cree que vas a estar. Se dibuja durante todo el aviso y es el contrato
+ * del enemigo con el jugador: si la silueta no está sobre vos, el renglón no te
+ * va a tocar. Que se pueda leer es lo que lo hace justo.
+ */
+function predictionMark(ctx, e) {
+  if (!e.aim || (e.state !== 'prediccion' && e.state !== 'ataque')) return;
+  const k = e.state === 'prediccion' ? 1 - e.lockT / KEYLOG.lock : 1;
+  const { x, y } = e.aim;
+  const c = G.theme.hostile;
+
+  ctx.save();
+
+  /* la línea desde la boca del carro: de dónde va a salir el renglón */
+  const mx = e.x + e.w / 2 + e.dir * 9, my = e.y + e.h / 2 + e.surface * 2;
+  ctx.strokeStyle = rgba(c, 0.2 + k * 0.35);
+  ctx.lineWidth = 1;
+  ctx.setLineDash([2.5, 5]);
+  ctx.lineDashOffset = -G.tick * 1.6;
+  ctx.beginPath();
+  ctx.moveTo(mx, my); ctx.lineTo(x, y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  /* la silueta de Bit donde lo espera: del tamaño real, hueca y temblando */
+  ctx.translate(rnd(-0.6, 0.6), rnd(-0.6, 0.6));
+  ctx.strokeStyle = rgba(c, 0.35 + k * 0.4);
+  ctx.lineWidth = 1.2;
+  ctx.setLineDash([3, 3]);
+  ctx.strokeRect(x - P.w / 2, y - P.h / 2, P.w, P.h);
+  ctx.setLineDash([]);
+
+  /* y la mira: se cierra a medida que se acaba el aviso */
+  const r = 13 - k * 5;
+  ctx.strokeStyle = rgba(c, 0.5 + k * 0.5);
+  ctx.lineWidth = 1.4;
+  for (const a of [0, 1, 2, 3]) {
+    const ang = a * Math.PI / 2 + Math.PI / 4;
+    ctx.beginPath();
+    ctx.moveTo(x + Math.cos(ang) * r, y + Math.sin(ang) * r);
+    ctx.lineTo(x + Math.cos(ang) * (r + 4), y + Math.sin(ang) * (r + 4));
+    ctx.stroke();
+  }
   ctx.restore();
 }
 

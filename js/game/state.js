@@ -2,6 +2,7 @@
    Todos los sistemas leen de acá; nadie guarda copias. */
 
 import { PLAYER } from '../config.js';
+import { clearActions } from './actions.js';
 
 export const G = {
   /* menu | brief | play | pause | dying | clear | over | win */
@@ -24,6 +25,13 @@ export const G = {
 
   /* entidades */
   enemies: [], crates: [], pickups: [],
+  /* Los tipos de proceso hostil que el mapa plantó en este sector, tomados una
+     sola vez al construirlo. Lo usa el Spyware para saber a quién llamar: pide
+     refuerzos de lo que el sector ya tiene, así escala solo de la capa 1 a la 11
+     sin que nadie mantenga una tabla aparte. Se toma al construir y no sobre
+     G.enemies en vivo porque a mitad de partida esa lista ya tiene cosas que el
+     mapa nunca puso —bichos, ventanas, ecos— y el padrón derivaría. */
+  roster: [],
   bullets: [], ebullets: [], grenades: [],
   parts: [], booms: [], rings: [], beams: [], pops: [],
 
@@ -110,4 +118,8 @@ export function resetPlayer(x, y) {
   P.coat.x = 0; P.coat.v = 0; P.hair.x = 0; P.hair.v = 0;
   P.dead = false;
   P.trail.length = 0;
+  /* La cinta se corta acá: morir o empezar un nivel invalida lo que cualquier
+     Keylogger creía saber de vos. Va en resetPlayer porque es el único punto por
+     el que pasan las dos cosas. */
+  clearActions();
 }

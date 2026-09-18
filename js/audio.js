@@ -220,6 +220,14 @@ export const Sfx = {
     glitch({ freq: 900, count: 5, gap: .03, peak: .12, at: .05 });
   },
 
+  /* petición rechazada: el tiro rebotó en un bot que el C2 sostiene. Tiene que
+     sonar a puerta cerrada y no a impacto — sordo, sin brillo y sin el clic de
+     `kill`, para que se note de oído que ahí no entró nada. */
+  shielded() {
+    noiseHit({ freq: 700, q: 1.6, peak: .1, attack: .001, decay: .05, type: 'lowpass' });
+    tone({ freq: 294, to: 233, peak: .07, attack: .002, decay: .11, type: 'square', dirty: true });
+  },
+
   /* proceso terminado */
   kill() {
     blips([988, 740, 494], { step: .045, len: .05, peak: .09, dirty: true });
@@ -265,6 +273,32 @@ export const Sfx = {
     tone({ freq: 2093, peak: .1, attack: .002, decay: .38, type: 'sine' });
     tone({ freq: 3136, peak: .05, attack: .002, decay: .26, type: 'sine', at: .01 });
     noiseHit({ freq: 5200, q: 1.4, peak: .05, decay: .1, type: 'highpass' });
+  },
+
+  /* el proyector del Spyware arranca: la bobina agarra velocidad y se abre el
+     obturador. Tiene que sonar a máquina que se pone en marcha —algo viene—, no
+     a disparo: este bicho no dispara. */
+  project() {
+    tone({ freq: 90, to: 260, peak: .16, attack: .02, decay: .5, type: 'sawtooth', dirty: true });
+    noiseHit({ freq: 900, q: .5, peak: .12, attack: .05, decay: .45, type: 'bandpass' });
+    blips([523, 659, 880], { step: .11, len: .08, peak: .07, type: 'triangle', at: .18 });
+  },
+
+  /* fijado: el Keylogger eligió el punto. Dos notas que SUBEN y cierran, al
+     revés del pitido de error — es un sistema diciendo "te tengo", y tiene que
+     distinguirse del telegrafiado común porque lo que anuncia no es un disparo
+     hacia vos sino hacia donde cree que vas a estar. */
+  lockon() {
+    tone({ freq: 523, peak: .07, attack: .002, decay: .06, type: 'square', dirty: true });
+    tone({ freq: 784, peak: .07, attack: .002, decay: .09, type: 'square', dirty: true, at: .07 });
+    tone({ freq: 1568, peak: .04, attack: .002, decay: .14, type: 'sine', at: .14 });
+  },
+
+  /* predicción fallida: la máquina se traba. Ruido roto y un tono que se cae,
+     sin nota final — es el sonido de algo que esperaba otra cosa. */
+  misfire() {
+    glitch({ freq: 1400, count: 5, gap: .022, peak: .12 });
+    tone({ freq: 380, to: 90, peak: .09, attack: .002, decay: .22, type: 'sawtooth', dirty: true });
   },
 
   /* alerta: dos tonos alternados, como una alarma de sistema */

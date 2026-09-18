@@ -87,6 +87,65 @@ export const PURGE = {
   frames:  70,      // duración de la animación
 };
 
+/* Keylogger. Todo su ajuste vive acá porque es el único enemigo cuyo peligro no
+   se mide en vida ni en daño sino en cuánto acierta, y eso hay que poder moverlo
+   sin abrir su IA.
+
+   Las dos perillas que de verdad cambian cómo se siente son `ready` —cuánto
+   tiene que creer que sabe antes de animarse— y `spread`, el error que le queda
+   incluso acertando la intención. Con `spread` en 0 y `ready` en 0 se vuelve un
+   francotirador injusto; los valores de acá lo dejan peligroso pero engañable.
+
+   `miss` es más grande que `hit` a propósito: aprender cuesta y desaprender es
+   barato, así que romper el patrón se paga solo en dos o tres acciones. */
+export const KEYLOG = {
+  detect:    270,      // rango en el que empieza a registrar
+  hist:      7,        // acciones que recuerda (5-8 es el rango sano)
+  hit:       9,        // % que sube cuando su predicción acierta
+  miss:      17,       // % que baja cuando falla
+  forget:    70,       // cuadros sin acciones antes de empezar a olvidar
+  decay:     0.5,      // % por cuadro que pierde mientras no pasa nada
+  /* Los tres que marcan cuánto tarda en atacar, todos a la mitad de lo que eran
+     (45, 300 y 110/175). Junta confianza con la mitad de aciertos, se cansa de
+     mirar en la mitad del tiempo y vuelve a tirar al doble de seguido.
+
+     Tiene un efecto de rebote que conviene conocer: animarse antes es animarse
+     con menos confianza, y el error del punto predicho se achica con la
+     confianza (ver `spread`). Así que ahora ataca el doble de seguido pero
+     apunta peor — se paga solo, y en la dirección correcta. */
+  ready:     23,       // % mínimo para animarse a predecir
+  blind:     150,      // cuadros mirando sin poder predecir antes de tirar igual
+
+  /* Éste NO se tocó, y es a propósito. El aviso es la ventana de reacción: todo
+     este enemigo se sostiene en que el punto se ve medio segundo antes y se
+     puede desmentir. Atacar más seguido es subir la presión; acortar el aviso
+     sería sacarle el contrajuego y volverlo un francotirador. Si igual se
+     quiere, es este número — pero ojo, también encoge la extrapolación. */
+  lock:      34,       // cuadros de aviso con el punto marcado antes de tirar
+  /* Velocidad del renglón. Manda más de lo que parece: es lo que decide si el
+     paquete llega al punto en el instante predicho o cuando ya pasó todo.
+     Contra alguien que corre alejándose a 2.7, un renglón lento no le gana
+     nunca — bajarla de 4 lo convierte en un enemigo que adivina bien y llega
+     tarde, que es la peor versión posible de este bicho. */
+  speed:     4.4,
+  /* Techo de la extrapolación, en cuadros. Es hasta dónde se anima a apostar.
+     Contra alguien que corre alejándose, la intercepción honesta se resuelve
+     cerca de los dos segundos: la mira aparece bastante adelante, y está bien
+     que así sea — es "vas a seguir corriendo hasta ahí", que es justamente la
+     apuesta que se le puede desmentir frenando. Bajarlo mucho no lo hace más
+     justo, lo hace tirar corto: el punto queda calculado para un instante al que
+     el paquete no llega, y vuelve el enemigo que adivina bien y llega tarde. */
+  horizon:   130,
+  cdMin:     55,       // espera tras atacar
+  cdMax:     88,
+  spread:    52,       // error máximo del punto predicho, en píxeles, con 0%
+  judgeR:    34,       // radio con el que se juzga si el tiro estuvo bien puesto
+  shots:     3,        // teclas por transmisión (la última sale rosada)
+  ghost:     86,       // % desde el que puede soltar un eco
+  ghostCd:   420,      // espera entre ecos
+  ghostStep: 20,       // cuadros que dura cada acción reproducida por el eco
+};
+
 /* Duraciones de la máquina de estados (frames). */
 export const TIMING = {
   brief:   150,

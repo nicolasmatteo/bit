@@ -13,6 +13,8 @@ import { damagePlayer, killPlayer, randomWeapon, damageEnemy } from './combat.js
 import * as FX from './fx.js';
 import { Sfx } from '../audio.js';
 import { aabb, clamp, rnd, lerp, springTo } from '../util.js';
+import { ACT, logAction, logMove } from './actions.js';
+import { purgeKeyloggers } from './enemies.js';
 
 let dropTimer = 0;
 
@@ -37,6 +39,12 @@ export function updatePlayer() {
   const wantLeft = Input.held('left');
   const wantRight = Input.held('right');
   const dir = (wantRight ? 1 : 0) - (wantLeft ? 1 : 0);
+
+  /* La cinta. Bit no sabe que lo están anotando —y ésa es la gracia—, así que
+     acá no hay lógica de enemigo: sólo se deja constancia de lo que hizo. Quien
+     la lee es el Keylogger (ver enemies/keylogger.js). Son cinco líneas en todo
+     el archivo, y ninguna cambia lo que Bit hace. */
+  logMove(dir);
 
   /* ── dash de encriptación ───────────────────── */
   if (P.dashCd > 0) P.dashCd--;
@@ -213,6 +221,7 @@ function jump(isDouble) {
     FX.dust(cx, cy, G.theme.fog, 4, 0.9);
   }
   Sfx.jump(isDouble);
+  logAction(ACT.SALTO);
 }
 
 /* ═══════════════════════════ dash, parry y purga ═══════════════════════════ */
@@ -232,6 +241,7 @@ function startDash() {
   FX.ring(P.x + P.w / 2, P.y + P.h / 2, 26, '#6ce8ff', { life: 16, width: 2, alpha: 0.8, squash: 0.7 });
   FX.spark(P.x + P.w / 2, P.y + P.h / 2, '#a8f4ff', 9, 2.4, [8, 18]);
   Sfx.dash();
+  logAction(ACT.DASH);
 }
 
 /**
@@ -350,6 +360,11 @@ function firePurge() {
   for (const L of breakAllLocks()) {
     FX.ring(L.x + L.w / 2, L.y + L.h / 2, 80, '#6ce8ff', { life: 26, width: 3, alpha: 0.9 });
   }
+
+  /* Y limpia la caché: lo que los Keyloggers de la pantalla creían saber de vos
+     vuelve a cero. Contra el único enemigo que se hace fuerte con el tiempo, la
+     barra compra lo que ninguna otra cosa compra — empezar de nuevo. */
+  purgeKeyloggers();
 
   FX.flash(14, '#6ce8ff');
   FX.shake(9);
@@ -528,6 +543,7 @@ function fire(blitz = false) {
 
   P.cooldown = w.cd;
   if (ammo !== Infinity) { P.weapons[P.weapon]--; P.ammo = P.weapons[P.weapon]; }
+  logAction(ACT.TIRO);      // un disparo de verdad: ya pasó munición y enfriamiento
 
   /* La pose se clava en el cuadro del disparo en vez de seguir interpolando:
      es lo que hace el dibujo animado, y de paso garantiza que el cañón esté
@@ -577,6 +593,7 @@ function lobGrenade() {
   throwGrenade(fx, fy, P.face * 3.4 + P.vx * 0.4, -3.6);
   FX.puff(fx, fy, '#cdbb95', 1, { size: [1.4, 2.4], life: [12, 22], alpha: 0.45 });
   Sfx.shot('ping');
+  logAction(ACT.TIRO);      // para la cinta, una granada es un ataque como cualquier otro
 }
 
 function checkPickups() {

@@ -151,8 +151,9 @@ export function updateProjectiles() {
           FX.spark(b.x, b.y + b.h / 2, '#dfe7ee', 6, 2.6, [6, 14]);
           damageEnemy(e, Math.max(1, Math.round(b.dmg * 0.25)), b.x);
         } else {
-          damageEnemy(e, b.dmg, b.x);
-          P.meter = Math.min(PURGE.max, P.meter + PURGE.perHit);   // la Purga se gana disparando
+          /* la Purga se gana disparando, pero sólo con lo que entra: contra el
+             escudo de una botnet el tiro se pierde entero, medidor incluido */
+          if (damageEnemy(e, b.dmg, b.x)) P.meter = Math.min(PURGE.max, P.meter + PURGE.perHit);
           if (!b.rocket) impact(b, b.x + b.w / 2, b.y + b.h / 2, true);
         }
         if (b.rocket) { explode(b.x, b.y, b.blastR + 2, b.blastDmg + 1, 'player'); gone = true; }

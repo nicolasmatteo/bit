@@ -18,7 +18,7 @@ export const BESTIARY = [
     text: 'Inunda la red con mensajes que nadie pidió. Donde hay uno, el tráfico se vuelve ruido.' },
 
   { type: 'keylogger', name: 'Keylogger', sector: 2,
-    text: 'Anota en silencio cada tecla que se toca. Lo que escribiste deja de ser tuyo.' },
+    text: 'Anota en silencio todo lo que hacés, hasta que empieza a saber qué vas a hacer después.' },
 
   { type: 'gusano', name: 'Gusano', sector: 2,
     text: 'No necesita que nadie lo abra: se copia solo. Dejarlo tranquilo nunca termina bien.' },
@@ -27,7 +27,7 @@ export const BESTIARY = [
     text: 'Se mete en medio de cada conversación. Lo que le mandás no llega igual a destino.' },
 
   { type: 'botnet', name: 'Botnet · servidor C2', sector: 2,
-    text: 'Una máquina que no pelea: da órdenes. Muchas otras le obedecen sin preguntar.' },
+    text: 'Una máquina que no pelea: da órdenes, y las sostiene. Sus bots no caen mientras ella siga en pie.' },
 
   { type: 'phishing', name: 'Phishing', sector: 3, pose: { mode: 'caza' },
     text: 'Se disfraza de lo que estás buscando. Lo que parece un regalo casi nunca lo es.' },
@@ -36,10 +36,10 @@ export const BESTIARY = [
     text: 'No te quiere muerto: te quiere mirando otra cosa. Llena la pantalla de lo que nadie pidió.' },
 
   { type: 'spyware', name: 'Spyware', sector: 4,
-    text: 'Anota dónde estás y a quién le sirve saberlo. Solo no hace daño; lo hace lo que llama.' },
+    text: 'Anota dónde estás y a quién le sirve saberlo. Él no te toca un pelo: el daño lo hace lo que llama.' },
 
   { type: 'troyano', name: 'Troyano', sector: 5,
-    text: 'Por fuera, algo inofensivo. Lo peligroso no es lo que se ve: es lo que trae adentro.' },
+    text: 'Por fuera, algo inofensivo. Lo peligroso no es lo que se ve: es lo que viaja adentro, y se ve por las ventanillas.' },
 
   { type: 'rootkit', name: 'Rootkit', sector: 6, pose: { mode: 'caza' },
     text: 'Ya estaba adentro cuando llegaste. No se defiende de que lo busquen: se defiende de que lo miren.' },

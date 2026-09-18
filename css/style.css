@@ -411,6 +411,124 @@ h1.display em{
 }
 .board[hidden]{display:none}
 
+/* ---------------------------------------------- el mapa de la intrusión
+   Once fichas de archivo, una por capa, en el orden en que se rompen. Las
+   abiertas son cartón crema como todo lo que el jugador puede tocar; las
+   cerradas son el mismo cartón dado vuelta — papel opaco, sin nombre y con el
+   sello de cerrado. Que se vean igual de grandes es a propósito: lo que falta
+   tiene que pesar tanto en la vista como lo ya hecho. */
+
+.sectors{
+  width:100%;
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(8.6rem,1fr));
+  gap:.85rem;
+}
+
+.sector{
+  --acc:var(--gold);
+  position:relative;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:.12rem;
+  padding:.7rem .8rem .85rem;
+  background:var(--paper);
+  border:3px solid var(--ink);
+  border-radius:10px;
+  box-shadow:5px 6px 0 rgba(25,19,16,.5);
+  font:inherit;
+  color:var(--ink);
+  text-align:left;
+  cursor:pointer;
+  transition:transform .12s var(--ease), box-shadow .12s var(--ease);
+  animation:deal .38s var(--ease) both;
+}
+/* el mazo se reparte: cada ficha entra un pelo después que la anterior */
+.sector:nth-child(2){animation-delay:.03s}
+.sector:nth-child(3){animation-delay:.06s}
+.sector:nth-child(4){animation-delay:.09s}
+.sector:nth-child(5){animation-delay:.12s}
+.sector:nth-child(6){animation-delay:.15s}
+.sector:nth-child(7){animation-delay:.18s}
+.sector:nth-child(8){animation-delay:.21s}
+.sector:nth-child(9){animation-delay:.24s}
+.sector:nth-child(10){animation-delay:.27s}
+.sector:nth-child(11){animation-delay:.30s}
+
+.sector.is-open:hover,
+.sector.is-open:focus-visible{
+  transform:translate(-2px,-3px);
+  box-shadow:8px 10px 0 rgba(25,19,16,.55);
+  outline:none;
+}
+.sector.is-open:active{transform:translate(2px,3px);box-shadow:2px 3px 0 rgba(25,19,16,.5)}
+
+/* el número, en grande y en la tipografía de los títulos: es lo que se lee de
+   lejos cuando se busca "dónde iba" */
+.sector__num{
+  font-family:'Bowlby One SC',Georgia,serif;
+  font-size:1.5rem;
+  line-height:1;
+  color:var(--acc);
+  -webkit-text-stroke:2px var(--ink);
+  paint-order:stroke fill;
+}
+.sector__name{
+  font-family:'Bowlby One SC',Georgia,serif;
+  font-size:.72rem;
+  line-height:1.2;
+  letter-spacing:.02em;
+}
+.sector__layer{
+  font-size:.6rem;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color:var(--paper-dim);
+}
+/* el sello de estado, cruzado en la esquina de abajo */
+.sector__mark{
+  margin-top:.35rem;
+  padding:.16em .6em .2em;
+  border:2px solid var(--ink);
+  border-radius:999px;
+  background:var(--ink);
+  color:var(--paper);
+  font-size:.52rem;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+}
+
+/* ---- saneado: el sello se pone en verde de "listo" y la ficha se apaga un
+        poco, porque ya no es hacia donde hay que ir ---- */
+.sector.is-done{--acc:var(--teal)}
+.sector.is-done .sector__mark{background:var(--teal);border-color:var(--ink);color:var(--ink)}
+
+/* ---- cerrado: el mismo cartón, del revés ---- */
+.sector.is-locked{
+  --acc:var(--paper-dim);
+  background:var(--paper-lo);
+  box-shadow:3px 4px 0 rgba(25,19,16,.32);
+  cursor:not-allowed;
+  opacity:.72;
+}
+.sector.is-locked .sector__name{color:var(--paper-dim);letter-spacing:.2em}
+.sector.is-locked .sector__mark{background:transparent;color:var(--paper-dim);border-color:var(--paper-dim)}
+/* el candado: una barra sobre la ficha, como el precinto de una caja */
+.sector.is-locked::after{
+  content:'';
+  position:absolute;
+  inset:auto 0 38%;
+  height:3px;
+  background:repeating-linear-gradient(90deg,var(--ink) 0 8px,transparent 8px 15px);
+  opacity:.45;
+}
+
+@media (prefers-reduced-motion:reduce){
+  .sector{animation:none}
+  .sector.is-open:hover,.sector.is-open:focus-visible{transform:none}
+}
+
 /* ---- los tres golpes maestros ---- */
 
 .moves{

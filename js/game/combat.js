@@ -6,7 +6,7 @@ import { aabb, rnd, pick } from '../util.js';
 import * as FX from './fx.js';
 import { Sfx } from '../audio.js';
 import { DROP_POOL } from '../data/weapons.js';
-import { spillTrojan, surface, spawnEnemy, splitImplante, endCopias } from './enemies.js';
+import { spillTrojan, surface, spawnEnemy, splitImplante, endCopias, shieldHit } from './enemies.js';
 import { dropLock } from './world.js';
 
 export function damagePlayer(amount, fromX = null) {
@@ -39,8 +39,19 @@ export function killPlayer() {
   Sfx.boom();
 }
 
+/**
+ * Devuelve si el golpe entró de verdad. Lo único que mira ese dato es la Purga,
+ * que se carga disparando: si un escudo contara, un bot intocable sería una
+ * fuente infinita de medidor.
+ */
 export function damageEnemy(e, amount, fromX = null) {
-  if (e.dead) return;
+  if (e.dead) return false;
+
+  /* Un bot enganchado a un C2 vivo no recibe daño: el aguante le baja por el
+     cable. No es que cueste más, es que no entra — gastarle balas es tiempo
+     regalado. El único blanco que sirve está del otro lado del cable. */
+  if (e.c2 && !e.c2.dead) { shieldHit(e); return false; }
+
   // al ransomware con la combinación casi rota se le entra al doble: es la
   // recompensa por haber sostenido el fuego en vez de cambiar de objetivo
   if (e.type === 'ransomware' && e.hp <= e.maxHp * 0.3) amount *= 2;
@@ -51,7 +62,7 @@ export function damageEnemy(e, amount, fromX = null) {
   e.aggro = 240;
   FX.spark(e.x + e.w / 2, e.y + e.h / 2, '#ffe6a8', 4, 2.4, [8, 18]);
   if (fromX !== null && e.knockback !== false) e.x += (e.x + e.w / 2 < fromX ? -1 : 1) * 0.8;
-  if (e.hp <= 0) { killEnemy(e); return; }
+  if (e.hp <= 0) { killEnemy(e); return true; }
 
   /* El Implante se copia al cruzar dos tercios y un tercio de integridad. Va
      acá y no en su IA porque el único que sabe cuánta vida le quedó después de
@@ -65,15 +76,25 @@ export function damageEnemy(e, amount, fromX = null) {
       splitImplante(e);
     }
   }
+  return true;
 }
 
 export function killEnemy(e) {
   e.dead = true;
-  /* Ni una ventana ni una copia son procesos hostiles: son cosas que el enemigo
-     puso en la pantalla. Romperlas no cuenta como baja. */
-  const fantasma = e.type === 'ventana' || e.type === 'copia';
+  /* Ni una ventana, ni una copia, ni un eco son procesos hostiles: son cosas que
+     el enemigo puso en la pantalla. Romperlas no cuenta como baja. */
+  const fantasma = e.type === 'ventana' || e.type === 'copia' || e.type === 'eco';
   if (!fantasma) G.stats.kills++;
   const cx = e.x + e.w / 2, cy = e.y + e.h / 2;
+
+  /* El eco es una grabación: cortarla la apaga y nada más. No suelta nada, y por
+     eso matarlo es sólo sacárselo de encima antes de tiempo, no un premio. */
+  if (e.type === 'eco') {
+    FX.pop(cx, cy, '#c9a0ff', 20, { life: 14, points: 6, core: '#e9d8ff' });
+    FX.spark(cx, cy, '#8a77a6', 9, 2.4);
+    Sfx.kill();
+    return;
+  }
 
   /* la copia se apaga y ya: equivocarse cuesta tiempo, no vida */
   if (e.type === 'copia') {
@@ -131,14 +152,20 @@ export function killEnemy(e) {
     return;
   }
 
-  /* el C2 cae y se lleva a su botnet: es el premio por haber elegido el blanco
-     correcto en vez de ir limpiando spambots de a uno */
+  /* El C2 cae y se lleva a su botnet entera en el mismo cuadro. No es un extra:
+     es la única forma de matar a esos bots, porque mientras el servidor estaba
+     en pie eran intocables. Se apagan de golpe, sin daño de por medio —por eso
+     la vida se pone en cero a mano y no restando— y el corte de corriente se
+     lee desde lejos: un anillo por cada uno y un temblor corto. */
   if (e.type === 'botnet' && e.links) {
     for (const bot of e.links) {
       if (bot.dead) continue;
+      bot.hp = 0;
+      bot.shield = 0;
       FX.ring(bot.x + bot.w / 2, bot.y + bot.h / 2, 24, G.theme.hostile, { life: 18, width: 2, alpha: 0.8 });
       killEnemy(bot);
     }
+    if (e.links.length) FX.shake(4);
   }
 
   /* el exfiltrador suelta lo que se llevó, desparramado para que haya que

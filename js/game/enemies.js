@@ -10,7 +10,8 @@
 
      enemies/spawn.js       la fábrica: un `case` por tipo
      enemies/shared.js      la cola de disparos diferidos y la puntería al vuelo
-     enemies/grunts.js      spambot, troyano, keylogger, gusano y bicho
+     enemies/grunts.js      spambot, troyano, gusano y bicho
+     enemies/keylogger.js   el que te lee: registro, predicción y su eco
      enemies/phishing.js    el mímico, sus disfraces y el anzuelo
      enemies/ransomware.js  el que te saca el piso
      enemies/network.js     botnet, Man-in-the-Middle y exfiltrador
@@ -20,8 +21,10 @@
 import { G, P } from './state.js';
 import { damagePlayer } from './combat.js';
 import { aabb } from '../util.js';
+import { outOfWorld } from './world.js';
 import { runQueue } from './enemies/shared.js';
-import { spambot, troyano, keylogger, gusano, bicho } from './enemies/grunts.js';
+import { spambot, troyano, gusano, bicho } from './enemies/grunts.js';
+import { keylogger, eco } from './enemies/keylogger.js';
 import { phishing } from './enemies/phishing.js';
 import { ransomware } from './enemies/ransomware.js';
 import { botnet, mitm, exfil } from './enemies/network.js';
@@ -31,10 +34,11 @@ import { monarca, baron, implante, copia, wakeBoss, bossKeepArena } from './enem
 /* Lo que el resto del juego le pide a este módulo. Quien dibuja o quien golpea
    no tiene por qué saber en qué archivo terminó cada bicho. */
 export { spawnEnemy } from './enemies/spawn.js';
-export { spillTrojan } from './enemies/grunts.js';
+export { spillTrojan, troyanoMuzzle } from './enemies/grunts.js';
 export { surface } from './enemies/intruders.js';
 export { HOOK_REACH, hookAnchor, hookTip } from './enemies/phishing.js';
-export { C2_WARN, reflectShot } from './enemies/network.js';
+export { C2_WARN, C2_SHIELD, SHIELD_COLOR, linkBots, shieldHit, reflectShot } from './enemies/network.js';
+export { purgeKeyloggers } from './enemies/keylogger.js';
 export { headPoints, activeBoss, splitImplante, endCopias } from './enemies/bosses.js';
 
 export function updateEnemies() {
@@ -44,7 +48,25 @@ export function updateEnemies() {
     if (e.dead) continue;
     e.t++;
     if (e.hit > 0) e.hit--;
+    /* el destello del escudo baja acá arriba, antes del corte por pantalla: un
+       bot al que le rebotó el último tiro justo al salir de cuadro tiene que
+       poder apagar el brillo igual */
+    if (e.shield > 0) e.shield--;
     if (e.aggro > 0) e.aggro--;
+
+    /* La red de seguridad de todos los que no son jefes. Ninguno se tira solo a
+       un pozo —eso ya lo impide `safeStepX` en cada familia—, pero quedan los
+       que llegaron ahí sin caminar: el bicho que el troyano escupió sobre el
+       hueco, el gusano que se partió al borde, el keylogger al que un ransomware
+       le cifró el piso, o un mapa que puso a alguien colgado del vacío.
+
+       A ésos no se los rescata —fuera del mapa no se los ve, no se los alcanza
+       y no vuelven—: se apagan y ya. Lo que no puede seguir pasando es lo de
+       antes, caer para siempre y seguir vivos: un gusano así se quedaba con un
+       lugar del cupo, y un exfiltrador así se llevaba tus fragmentos a ninguna
+       parte. Va antes del corte por pantalla porque el que se cayó justo en el
+       borde de la cámara también tiene que apagarse. */
+    if (!e.boss && outOfWorld(e)) { e.dead = true; continue; }
 
     const onScreen = e.x + e.w > G.cam.x - 90 && e.x < G.cam.x + G.view.w + 90;
     if (!onScreen && !e.boss) continue;
@@ -78,6 +100,7 @@ export function updateEnemies() {
       case 'phishing':   phishing(e, dx, dy, dist);   break;
       case 'ransomware': ransomware(e, dx, dy, dist); break;
       case 'keylogger':  keylogger(e, dx, dy, dist);  break;
+      case 'eco':        eco(e, dx, dy, dist);        break;
       case 'gusano':     gusano(e, dx, dy, dist);     break;
       case 'bicho':      bicho(e, dx, dy, dist);      break;
       case 'monarca':    monarca(e, dx, dy, dist);    break;

@@ -1,19 +1,23 @@
-/* La tropa: spambot, troyano, keylogger, gusano y el bicho que sale del
-   troyano. Son los que llenan un sector — patrullan, telegrafían y disparan— y
-   están juntos porque comparten la misma silueta de comportamiento: caminan,
-   miran, avisan y tiran. Lo que se aprende con uno sirve para los otros. */
+/* La tropa: spambot, troyano, gusano y el bicho que sale del troyano. Son los
+   que llenan un sector — patrullan, telegrafían y disparan— y están juntos
+   porque comparten la misma silueta de comportamiento: caminan, miran, avisan y
+   tiran. Lo que se aprende con uno sirve para los otros.
+
+   El Keylogger vivía acá y se mudó a enemies/keylogger.js: dejó de compartir esa
+   silueta el día que lo suyo pasó a ser leer al jugador en vez de apuntarle. */
 
 import { G } from '../state.js';
-import { moveActor, groundAhead, rectHitsSolid } from '../world.js';
+import { moveActor, groundAhead, rectHitsSolid, safeStepX, canLand } from '../world.js';
 import { PINK_GAP } from '../../config.js';
 import { spawnEBullet } from '../projectiles.js';
 import * as FX from '../fx.js';
 import { Sfx } from '../../audio.js';
-import { rnd, rndi } from '../../util.js';
+import { rnd } from '../../util.js';
 import { spawnEnemy } from './spawn.js';
 import { queueShot, aimAt } from './shared.js';
 
 const MAX_WORMS = 9;   // techo global: un gusano sin control no puede colgar el nivel
+const BICHO_SALTO = 26;  // hasta dónde llega su brinco: poco más de un tile
 
 /* ─────────────────────────────── Spambot
    Patrulla y, cuando te ve, vomita una ráfaga de ventanas emergentes. La del
@@ -85,6 +89,17 @@ export function spambot(e, dx, dy, dist) {
    Acorazado y lento. El escudo frontal aguanta casi todo, así que hay que
    rodearlo. Al reventar libera la carga que traía adentro. */
 
+/**
+ * La boca del cañón, en coordenadas del mundo. La comparten la IA y el dibujo a
+ * propósito: si el disparo saliera de un lugar y el caño se viera en otro, el
+ * escudo dejaría de explicar por qué hay que rodearlo. Es la misma razón por la
+ * que Bit tiene su `muzzlePoint` compartido con el aparejo del brazo.
+ */
+export const troyanoMuzzle = e => ({
+  x: e.x + e.w / 2 + e.dir * 24,
+  y: e.y + e.h - 30,
+});
+
 export function troyano(e, dx, dy, dist) {
   e.vy = Math.min(e.vy + 0.55, 11);
   const sees = dist < 240 && Math.abs(dy) < 80;
@@ -94,15 +109,18 @@ export function troyano(e, dx, dy, dist) {
   const wounded = e.hp < e.maxHp * 0.45;
   if (e.charge > 0) {
     e.charge--;
-    moveActor(e, e.dir * e.speed * 3.4, e.vy, { oneway: false });
+    /* la embestida frena en el borde igual que contra una pared: una tonelada
+       de chapa lanzada a un pozo es una tonelada de chapa que ya no está */
+    const embiste = safeStepX(e, e.dir * e.speed * 3.4);
+    moveActor(e, embiste, e.vy, { oneway: false });
     if (e.t % 4 === 0) FX.dust(e.x + e.w / 2, e.y + e.h, G.theme.fog, 1, 1.1);
-    if (e.hitWall) e.charge = 0;
+    if (e.hitWall || embiste === 0) e.charge = 0;
     return;
   }
 
   if (e.aggro > 0) {
     const approach = Math.abs(dx) > 90 ? e.dir * e.speed : 0;
-    moveActor(e, approach, e.vy, { oneway: false });
+    moveActor(e, safeStepX(e, approach), e.vy, { oneway: false });
 
     if (e.telegraph > 0) {
       if (--e.telegraph === 0) {
@@ -111,18 +129,19 @@ export function troyano(e, dx, dy, dist) {
           /* abanico de cuatro con un hueco en el medio, y por ese hueco, un
              rato después, el rosado. Antes el rosado iba en el centro del
              abanico, en el mismo cuadro que dos normales a 8 grados: imposible */
+          const boca = troyanoMuzzle(e);
           for (const i of [-2, -1, 1, 2]) {
             const a = Math.atan2(dy, dx) + i * 0.2;
-            spawnEBullet(e.x + e.w / 2 + e.dir * 10, e.y + 13,
+            spawnEBullet(boca.x, boca.y,
               Math.cos(a) * 3.1, Math.sin(a) * 3.1, { size: 4.4, heavy: true });
           }
           queueShot(e, PINK_GAP, () => {
-            const mx = e.x + e.w / 2 + e.dir * 10, my = e.y + 13;
-            const pa = aimAt(mx, my);
-            spawnEBullet(mx, my, Math.cos(pa) * 3.1, Math.sin(pa) * 3.1, { size: 5, corrupt: true });
-            FX.spark(mx, my, '#ff6ec7', 5, 2);
+            const b = troyanoMuzzle(e);
+            const pa = aimAt(b.x, b.y);
+            spawnEBullet(b.x, b.y, Math.cos(pa) * 3.1, Math.sin(pa) * 3.1, { size: 5, corrupt: true });
+            FX.spark(b.x, b.y, '#ff6ec7', 5, 2);
           });
-          FX.spark(e.x + e.w / 2 + e.dir * 14, e.y + 13, '#ffc27a', 7, 2.4);
+          FX.spark(boca.x + e.dir * 5, boca.y, '#ffc27a', 7, 2.4);
           FX.shake(1.6);
         }
         e.cd = rnd(105, 150);
@@ -139,135 +158,57 @@ export function troyano(e, dx, dy, dist) {
   e.anim += Math.abs(e.vx) * 0.1 + 0.02;
 }
 
+/* Lo que el caballo trae adentro, en el orden en que desembarca: de atrás hacia
+   adelante, así el último en salir es el que queda más cerca de Bit.
+
+   Son tres procesos enteros y no una nube de bichos porque el troyano nunca fue
+   un enemigo: es un transporte. Lo que importa de él no es pelearlo, es dónde lo
+   abrís — y por eso ahora se lo ve venir de lejos y se lo ve por dentro: las
+   tres ventanillas del costado muestran quién viene (ver el dibujo).
+
+   Tocar esta lista es toda la perilla de dificultad que tiene. */
+const CARGA = ['keylogger', 'gusano', 'ransomware'];
+const CARGA_COLOR = { keylogger: '#c9a0ff', gusano: '#9fe86a', ransomware: '#6ce8ff' };
+
 /** La carga del troyano: lo llama combat.js al matarlo. */
 export function spillTrojan(e) {
-  const n = rndi(3, 5);
-  for (let i = 0; i < n; i++) {
-    const b = spawnEnemy('bicho', e.x + e.w / 2 - 4 + rnd(-8, 8), e.y + e.h);
-    b.vy = rnd(-4.2, -2);
-    b.vx = rnd(-1.8, 1.8);
-    b.dir = b.vx > 0 ? 1 : -1;
-    G.enemies.push(b);
-  }
-  FX.pop(e.x + e.w / 2, e.y + e.h / 2, '#9fe86a', 22, { life: 14, points: 8 });
-}
+  const cx = e.x + e.w / 2, feet = e.y + e.h;
 
-/* ─────────────────────────────── Keylogger
-   Una máquina de escribir agarrada de una superficie —suelo o techo— que
-   patrulla hasta tenerte a tiro.
+  for (const [i, tipo] of CARGA.entries()) {
+    const off = (i - (CARGA.length - 1) / 2) * 17;
+    const o = spawnEnemy(tipo, cx + off, feet);
 
-   Antes dejaba teclas quietas por donde pasaba: como iba y venía por la misma
-   línea, el rastro terminaba siendo un charco que se saltaba de una y el bicho
-   no pedía nada a cambio. Ahora hace lo que dice el expediente. Te ve, frena y
-   TECLEA: cada golpe deja una tecla a la vista sobre el rodillo, y ése es el
-   aviso —tres golpes, medio segundo, tiempo de sobra para cortarle la línea o
-   matarlo—. Cuando el renglón se llena suena la campanilla y lo TRANSMITE
-   entero, apuntado, con el rosado al final como todos.
+    /* spawnEnemy planta por el borde izquierdo; acá lo que se quiere es que cada
+       pasajero quede centrado en su hueco. El `homeX` va con él: el ransomware
+       flota alrededor de ese punto, y si se corre uno sin el otro queda derivando
+       hacia donde nunca estuvo. */
+    const shift = -o.w / 2;
+    o.x += shift;
+    if (o.homeX !== undefined) o.homeX += shift;
 
-   Lo que registra es lo que te manda: por eso las teclas que vuelan llevan una
-   letra, y por eso no puede seguir caminando mientras escribe. */
-
-const LOG_KEYS = 3;                              // cuántas teclas anota por renglón
-const KEY_CHARS = 'QWERTYUIOPASDFGHJKLZXCVBNM';  // lo que "leyó" del teclado
-
-export function keylogger(e, dx, dy, dist) {
-  const s = e.surface;                       // 1 = suelo, -1 = techo
-  e.seg += e.speed * 0.42;
-  if (e.strike > 0) e.strike--;
-  if (e.ring > 0) e.ring--;
-
-  const sees = dist < 300 && Math.abs(dy) < 150;
-  if (sees) e.aggro = 120; else if (e.aggro > 0) e.aggro--;
-
-  /* mientras escribe o transmite no se mueve: el renglón es un compromiso */
-  const busy = e.state === 'registro' || e.burst > 0;
-
-  if (!busy) {
-    const step = e.dir * e.speed;
-    moveActor(e, step, 0, { oneway: false });
-
-    /* ¿sigue habiendo superficie adelante? si no, o si choca, da la vuelta */
-    const aheadX = e.dir > 0 ? e.x + e.w + 3 : e.x - 3;
-    const probeY = s > 0 ? e.y + e.h + 4 : e.y - 4;
-    if (e.hitWall || !rectHitsSolid(aheadX - 1, probeY - 1, 2, 2)) e.dir *= -1;
-  }
-
-  /* se despega si le sacaron el piso de abajo (o el techo de arriba) */
-  const under = rectHitsSolid(e.x + 2, s > 0 ? e.y + e.h + 1 : e.y - 3, e.w - 4, 2);
-  if (!under) {
-    e.vy = Math.min(e.vy + 0.55 * s, 11);
-    moveActor(e, 0, e.vy, { oneway: false });
-    if (e.onGround) e.vy = 0;
-  } else e.vy = 0;
-
-  /* la boca del carro: por donde sale el renglón, del lado que mira */
-  const mx = () => e.x + e.w / 2 + e.dir * 9;
-  const my = () => e.y + e.h / 2 + s * 2;
-
-  if (e.state === 'registro') {
-    e.dir = dx > 0 ? 1 : -1;                 // se acomoda mientras escribe
-    if (--e.typeT <= 0) {
-      e.typeT = 13;
-      e.strike = 8;
-      e.log.push(KEY_CHARS[rndi(0, KEY_CHARS.length - 1)]);
-      Sfx.keystroke();
-      FX.spark(mx(), my(), '#c9a0ff', 2, 1.2, [4, 9]);
-
-      if (e.log.length >= LOG_KEYS) {
-        /* campanilla: el renglón está lleno y se va entero */
-        e.state = 'transmite';
-        e.burst = LOG_KEYS - 1;              // el último sale rosado, aparte
-        e.burstCd = 0;
-        e.typeT = 0;                         // pasa a contar la espera del rosado
-        e.ring = 18;
-        Sfx.bell();
-      }
+    /* Si el hueco está tapado, sale por el centro del propio caballo: ese lugar
+       estaba libre hace un cuadro —lo ocupaba él— así que siempre hay sitio. */
+    if (rectHitsSolid(o.x, o.y, o.w, o.h)) {
+      const dx2 = cx - o.w / 2 - o.x;
+      o.x += dx2;
+      if (o.homeX !== undefined) o.homeX += dx2;
+      if (rectHitsSolid(o.x, o.y, o.w, o.h)) continue;   // ni así: se queda adentro
     }
-    return;
+
+    /* un empujón hacia afuera, para que se lea el desembarco y no una aparición */
+    o.vy = rnd(-3.6, -2);
+    o.dir = off >= 0 ? 1 : -1;
+    G.enemies.push(o);
+
+    const ox = o.x + o.w / 2, oy = o.y + o.h / 2;
+    FX.ring(ox, oy, 30, CARGA_COLOR[tipo] || '#e8e0cc', { life: 20, width: 2.2, alpha: 0.9 });
+    FX.spark(ox, oy, CARGA_COLOR[tipo] || '#e8e0cc', 10, 2.6, [10, 22]);
   }
 
-  if (e.burst > 0) {
-    if (--e.burstCd <= 0) {
-      e.burstCd = 10;
-      e.burst--;
-      fireKey(e, e.log.shift(), false);
-
-      /* el rosado sale aparte, PINK_GAP después del último normal */
-      if (e.burst === 0) queueShot(e, PINK_GAP, () => {
-        fireKey(e, e.log.shift() || KEY_CHARS[0], true);
-        e.state = 'patrulla';
-        e.cd = rnd(120, 190);
-      });
-    }
-    return;
-  }
-
-  /* esperando el rosado, que sale de la cola PINK_GAP cuadros después. La
-     cola no corre fuera de cuadro, así que acá hay un tope: sin él, un
-     keylogger al que se le pierde el disparo encolado se queda escribiendo
-     para siempre y deja de ser un enemigo. */
-  if (e.state === 'transmite') {
-    if (++e.typeT > 120) { e.state = 'patrulla'; e.cd = rnd(90, 150); e.log.length = 0; }
-    return;
-  }
-
-  if (--e.cd <= 0 && sees) {
-    e.state = 'registro';
-    e.log.length = 0;
-    e.typeT = 12;
-    Sfx.telegraph();
-  }
-}
-
-/** Una tecla transmitida: apunta al salir, no al escribirse. */
-function fireKey(e, ch, corrupt) {
-  const s = e.surface;
-  const x = e.x + e.w / 2 + e.dir * 9, y = e.y + e.h / 2 + s * 2;
-  const a = aimAt(x, y) + rnd(-0.045, 0.045);
-  const sp = corrupt ? 3.1 : 3.4;
-  spawnEBullet(x, y, Math.cos(a) * sp, Math.sin(a) * sp,
-    { size: 6, life: 220, key: true, letter: ch, corrupt, color: '#c9a0ff' });
-  FX.spark(x, y, corrupt ? '#ff6ec7' : '#c9a0ff', 4, 1.8, [4, 11]);
+  /* el caballo se abre: astillas, polvo y un golpe que se siente */
+  FX.debris(cx, feet - 26, '#b0763a', 16, 3.4);
+  FX.pop(cx, feet - 26, '#e8c08a', 30, { life: 16, points: 9 });
+  FX.shake(6);
 }
 
 /* ─────────────────────────────── Worm
@@ -278,7 +219,11 @@ export function gusano(e, dx, dy, dist) {
   e.vy = Math.min(e.vy + 0.5, 10);
   const toward = Math.sign(dx) || e.dir;
   e.dir = toward;
-  moveActor(e, toward * e.speed, e.vy, { oneway: false });
+  /* Va derecho a vos y no mira por dónde pisa —es un gusano—, pero frena en el
+     borde. Sin esto era el que más se perdía: como sigue a Bit sin importarle el
+     terreno, alcanzaba con pararse del otro lado de un pozo para que se tirara
+     solo, y cada uno perdido se quedaba con un lugar del cupo de MAX_WORMS. */
+  moveActor(e, safeStepX(e, toward * e.speed), e.vy, { oneway: false });
   e.anim += 0.2;
 
   if (!e.onGround) { e.split = Math.max(e.split, 90); return; }
@@ -307,12 +252,17 @@ export function bicho(e, dx, dy, dist) {
   e.vy = Math.min(e.vy + 0.55, 11);
   e.dir = Math.sign(dx) || e.dir;
   const run = dist < 200 ? e.dir * e.speed : e.dir * e.speed * 0.5;
-  moveActor(e, run, e.vy, { oneway: false });
+  moveActor(e, safeStepX(e, run), e.vy, { oneway: false });
   e.anim += 0.34;
 
   const probeX = e.dir > 0 ? e.x + e.w + 2 : e.x - 2;
   if (e.hitWall) e.dir *= -1;
-  /* salta los pozos chicos en vez de tirarse: si no, se suicidan todos solos */
-  if (e.onGround && !groundAhead(probeX, e.y + e.h + 3)) e.vy = -5.2;
+  /* Salta los pozos chicos en vez de tirarse. Pero sólo los que puede cruzar: el
+     impulso da para poco más de un tile, y antes saltaba cualquier hueco — los
+     anchos se lo tragaban igual, sólo que en el aire. Si del otro lado no hay
+     dónde caer se queda en el borde, que es lo que hace cualquier bicho. */
+  if (e.onGround && !groundAhead(probeX, e.y + e.h + 3) && canLand(e, e.dir, BICHO_SALTO)) {
+    e.vy = -5.2;
+  }
 }
 

@@ -140,24 +140,93 @@ export function infectedAura(ctx, e) {
 }
 
 /* ── Spyware ──────────────────────────────────────────────────────────────
-   Una camarita con patas de insecto. Todo el dibujo está al servicio de una
-   sola pregunta que el jugador tiene que poder contestar de un vistazo: ¿me
-   está viendo? Por eso el lente es lo más grande y lo único rojo. */
+   Un proyector de cine que flota.
+
+   Es el enemigo que no dispara: mira, enrolla lo que ve y después PROYECTA un
+   proceso nuevo en el piso. El dibujo entero está hecho para contar eso sin una
+   palabra, y para que cada pieza sea una lectura y no un adorno:
+
+     el lente     ¿me está viendo? Es lo más grande y lo único rojo. El iris se
+                  cierra a medida que enfoca: cuanto más chico, menos falta.
+     las bobinas  cuánto lleva leído. Una se vacía y la otra se llena — el
+                  medidor no es una barra pegada encima, es la película misma.
+     el cono      dónde va a caer lo que viene, medio segundo antes de que
+                  aparezca. Es todo el contrajuego: se ve y se puede no estar ahí.
+
+   El proyector no es un capricho de tema: este juego ya está virado a celuloide
+   —el papel de la casa se llama "crema de celuloide", morir es el fundido de un
+   corto— así que la cosa que trae procesos a la pantalla es, literalmente, la
+   que los proyecta. */
 
 export function spywareCam(ctx, e, th, hostile, flash) {
   const cx = e.x + e.w / 2, cy = e.y + e.h / 2;
-  const body = flash ? '#ffffff' : '#4a5260';
+  const laton = flash ? '#ffffff' : '#7a6a4e';
+  const oscuro = flash ? '#ffffff' : '#39332a';
   const mirando = e.beam && !P.dead;
+  const k = clamp(e.watch / 300, 0, 1);       // cuánto lleva enrollado
+  const proyectando = e.cast > 0 && e.castAt;
 
-  /* el haz: del lente a Bit. Es información, no adorno — mientras esté, tu
-     posición la sabe todo el sector. */
+  /* ── el cono de luz: de la lente al sitio elegido ──
+     Va antes que el cuerpo y en coordenadas del mundo. Titila como un proyector
+     de verdad —la lámpara nunca está quieta— y adentro, al fondo, crece el
+     recuadro de lo que viene: su tamaño real, para que se entienda si lo que
+     llega es un bicho o una mole. */
+  if (proyectando) {
+    const s = e.castAt;
+    const t = 1 - e.cast / 52;                 // 0 recién abierto, 1 a punto
+    const bx = s.x + s.w / 2, by = s.y - s.h / 2;
+    const flicker = 0.76 + Math.sin(G.tick * 0.9) * 0.1 + Math.sin(G.tick * 2.3) * 0.06;
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = (0.13 + t * 0.2) * flicker;
+    /* el haz: un trapecio que se abre desde la lente hasta el ancho del que viene */
+    const ancho = Math.max(s.w, 16) / 2 + 4;
+    ctx.beginPath();
+    ctx.moveTo(cx - 3, cy);
+    ctx.lineTo(cx + 3, cy);
+    ctx.lineTo(bx + ancho, s.y);
+    ctx.lineTo(bx - ancho, s.y);
+    ctx.closePath();
+    ctx.fillStyle = '#ffd28a';
+    ctx.fill();
+    ctx.restore();
+
+    /* el charco de luz en el piso */
+    ctx.save();
+    ctx.globalAlpha = 0.3 + t * 0.4;
+    ctx.beginPath();
+    ctx.ellipse(bx, s.y, ancho, ancho * 0.26, 0, 0, 6.283);
+    ctx.strokeStyle = '#ffd28a';
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+    ctx.restore();
+
+    /* el recuadro de lo que viene, con esquinas de fotograma */
+    ctx.save();
+    ctx.globalAlpha = 0.35 + t * 0.55;
+    ctx.strokeStyle = t > 0.75 ? hostile : '#ffd28a';
+    ctx.lineWidth = 1.4;
+    const hw = s.w / 2 * (0.5 + t * 0.5), hh = s.h / 2 * (0.5 + t * 0.5);
+    for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      ctx.beginPath();
+      ctx.moveTo(bx + sx * hw, by + sy * hh - sy * hh * 0.45);
+      ctx.lineTo(bx + sx * hw, by + sy * hh);
+      ctx.lineTo(bx + sx * hw - sx * hw * 0.45, by + sy * hh);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /* ── el haz de lectura: de la lente a Bit ──
+     Es información, no adorno: mientras esté, tu posición la sabe todo el sector. */
   if (mirando) {
     const px = P.x + P.w / 2, py = P.y + P.h / 2;
-    const alarma = e.watch > 180;
+    const casi = k > 0.6;
     ctx.save();
-    ctx.globalAlpha = 0.28 + Math.sin(G.tick * 0.3) * 0.08 + (alarma ? 0.2 : 0);
-    ctx.strokeStyle = alarma ? '#ff2f4f' : '#ff6a6a';
-    ctx.lineWidth = alarma ? 2.2 : 1.2;
+    ctx.globalAlpha = 0.28 + Math.sin(G.tick * 0.3) * 0.08 + (casi ? 0.2 : 0);
+    ctx.strokeStyle = casi ? '#ff2f4f' : '#ff6a6a';
+    ctx.lineWidth = casi ? 2.2 : 1.2;
     ctx.setLineDash([5, 4]);
     ctx.lineDashOffset = -G.tick * 1.6;
     ctx.beginPath();
@@ -171,56 +240,99 @@ export function spywareCam(ctx, e, th, hostile, flash) {
   ctx.translate(cx + boil(e.x, 0.3), cy + boil(e.x + 5, 0.3));
   ctx.scale(e.dir, 1);
 
-  /* patas de insecto, tres por lado, colgando y cabeceando */
-  for (const side of [-1, 1]) {
-    for (let i = 0; i < 3; i++) {
-      const sw = Math.sin(e.float * 1.6 + i * 1.2 + (side > 0 ? 0.6 : 0)) * 1.6;
-      hose(ctx, side * 4, 3, side * (7 + i), 7 + sw, side * (6 + i * 1.6), 11 + sw, 1.5, '#2a3038', LWD);
+  /* ── las dos bobinas: la de arriba se vacía, la de abajo se llena ──
+     Giran sólo mientras lee, y al proyectar se van a fondo. */
+  const giro = e.float * (proyectando ? 5 : mirando ? 2.2 : 0.35);
+  for (const [i, [rx, ry]] of [[-5, -11], [4.5, -10]].entries()) {
+    const lleno = i === 0 ? 1 - k : k;         // radio de la película enrollada
+    const r = 2.6 + lleno * 3.2;
+    ctx.save();
+    ctx.translate(rx, ry);
+    /* la película enrollada: un disco que crece o mengua */
+    disc(ctx, 0, 0, r, flash ? '#ffffff' : '#241f18', 0);
+    /* el plato de la bobina, con sus tres brazos girando */
+    ctx.rotate(giro + i * 1.1);
+    ctx.beginPath();
+    for (let a = 0; a < 3; a++) {
+      const ang = (a / 3) * Math.PI * 2;
+      ctx.moveTo(0, 0);
+      ctx.lineTo(Math.cos(ang) * 5.4, Math.sin(ang) * 5.4);
     }
+    ctx.strokeStyle = INK; ctx.lineWidth = 1.3; ctx.lineCap = 'round';
+    ctx.stroke();
+    ctx.restore();
+    disc(ctx, rx, ry, 5.6, null, 0);           // aro exterior
+    ctx.beginPath();
+    ctx.arc(rx, ry, 5.6, 0, 6.283);
+    ctx.strokeStyle = INK; ctx.lineWidth = 1.5;
+    ctx.stroke();
+    disc(ctx, rx, ry, 1.1, laton, 0.9);
   }
 
-  /* cuerpo: cajita de cámara con la tapa superior más clara */
-  pill(ctx, -8, -7, 16, 12, 2.4);
-  ctx.fillStyle = body;
+  /* la tira de película entre las dos bobinas, con sus perforaciones */
+  ctx.beginPath();
+  ctx.moveTo(-5, -5.6);
+  ctx.quadraticCurveTo(0, -3.4, 4.5, -4.6);
+  ctx.strokeStyle = INK; ctx.lineWidth = 2.6; ctx.lineCap = 'round';
+  ctx.stroke();
+  ctx.strokeStyle = flash ? '#ffffff' : '#241f18'; ctx.lineWidth = 1.4;
+  ctx.stroke();
+
+  /* ── el cuerpo: la cabeza del proyector ── */
+  pill(ctx, -8, -5, 15, 11, 2.2);
+  ctx.fillStyle = laton;
   ctx.fill();
-  shadeHalf(ctx, 0, -1, 8, 0.22);
+  shadeHalf(ctx, 0, 0, 8, 0.24);
   ctx.strokeStyle = INK; ctx.lineWidth = LW; ctx.lineJoin = 'round';
   ctx.stroke();
-  ctx.fillStyle = rgba('#ffffff', 0.14);
-  ctx.fillRect(-7, -6.4, 14, 2.2);
+  /* rejilla de ventilación: la lámpara calienta */
+  ctx.strokeStyle = rgba(INK, 0.4); ctx.lineWidth = 1;
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath(); ctx.moveTo(-6, -2.4 + i * 2.4); ctx.lineTo(-2.4, -2.4 + i * 2.4); ctx.stroke();
+  }
 
-  /* antenita: se para cuando está leyendo */
+  /* la manivela de atrás, que gira con las bobinas */
+  ctx.save();
+  ctx.translate(-9.5, 0);
+  ctx.rotate(giro);
   ctx.beginPath();
-  ctx.moveTo(-3, -7);
-  ctx.lineTo(-4.5, mirando ? -13 : -10.5);
-  ctx.strokeStyle = INK; ctx.lineWidth = 1.4; ctx.lineCap = 'round';
+  ctx.moveTo(0, 0); ctx.lineTo(0, -3.4); ctx.lineTo(2, -3.4);
+  ctx.strokeStyle = INK; ctx.lineWidth = 1.6; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   ctx.stroke();
-  disc(ctx, -4.5, mirando ? -13 : -10.5, 1.4, mirando ? '#ff4f5f' : '#8b939c', 0.9);
+  ctx.restore();
 
-  /* el lente: cañón corto y el ojo rojo adentro. Late cuando lee. */
-  pill(ctx, 7, -4.4, 6, 8.8, 1.6);
-  inked(ctx, '#39404a', LWD);
-  const lente = mirando ? (G.tick % 10 < 5 ? '#ff2f4f' : '#ff7a86') : '#7a3a44';
-  if (mirando) {
+  /* ── la lente: el ojo. Lo más grande y lo único rojo ── */
+  pill(ctx, 6, -4.6, 7, 9.2, 1.8);
+  inked(ctx, oscuro, LWD);
+  if (mirando || proyectando) {
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    glow(ctx, 13, 0, 14, '#ff3d5a', 0.45);
+    glow(ctx, 13.5, 0, 15, proyectando ? '#ffd28a' : '#ff3d5a', 0.45);
     ctx.restore();
   }
-  disc(ctx, 12.6, 0, 3.4, lente, LW);
-  disc(ctx, 12.6, 0, 1.4, '#2b0d12', 0);
-  shine(ctx, 11.4, -1.6, 1, 0.7, -0.5, 0.9);
+  const vidrio = proyectando ? '#ffd28a'
+               : mirando ? (G.tick % 10 < 5 ? '#ff2f4f' : '#ff7a86') : '#7a3a44';
+  disc(ctx, 13, 0, 3.8, vidrio, LW);
+  /* el iris: se cierra sobre la pupila a medida que enfoca. Chico = ya casi */
+  const iris = 2.6 - k * 1.7;
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 + k * 0.5;
+    const px2 = 13 + Math.cos(a) * iris, py2 = Math.sin(a) * iris;
+    if (i === 0) ctx.moveTo(px2, py2); else ctx.lineTo(px2, py2);
+  }
+  ctx.closePath();
+  ctx.fillStyle = '#2b0d12';
+  ctx.fill();
+  ctx.strokeStyle = rgba(INK, 0.6); ctx.lineWidth = 0.9;
+  ctx.stroke();
+  shine(ctx, 11.6, -1.8, 1.1, 0.8, -0.5, 0.9);
 
-  /* la barra de lo que lleva leído: sólo aparece cuando ya es un problema */
-  if (e.watch > 60) {
-    const k = clamp(e.watch / 300, 0, 1);
-    ctx.save();
-    ctx.scale(e.dir, 1);           // que no se escriba al revés si mira a la izquierda
-    pill(ctx, -8, -12.5, 16, 3, 1.5);
-    inked(ctx, '#2a3038', 1);
-    ctx.fillStyle = k > 0.8 ? '#ff2f4f' : '#ffb04f';
-    ctx.fillRect(-7.2, -11.8, 14.4 * k, 1.6);
-    ctx.restore();
+  /* dos cables colgando: lo único que le queda de bicho, y lo que dice que
+     esto cuelga de algún lado y no se apoya en ninguno */
+  for (const side of [-1, 1]) {
+    const sw = Math.sin(e.float * 1.4 + (side > 0 ? 0.8 : 0)) * 1.8;
+    hose(ctx, side * 4, 5, side * 5, 9 + sw, side * (3 + side * 1.5), 13 + sw, 1.4, '#2a3038', LWD);
   }
   ctx.restore();
 }

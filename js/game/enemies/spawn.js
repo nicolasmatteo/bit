@@ -24,12 +24,24 @@ export function spawnEnemy(type, x, footY, bait = null) {
     boss: false,
   };
   switch (type) {
+    /* `c2` lo llena la botnet que lo enganche al armar el nivel. Mientras
+       apunte a un servidor vivo este bot es intocable, y `shield` es lo que
+       dura el destello del tiro que le rebotó. */
     case 'spambot':
       return { ...base, w: 14, h: 26, y: footY - 26, hp: 5, maxHp: 5, speed: 0.62,
-               popup: 0, burstCd: 0 };
+               popup: 0, burstCd: 0, c2: null, shield: 0 };
 
+    /* Troyano. El más grande de la tropa y el único que no pelea por sí mismo:
+       lo que trae adentro vale más que él. Es el doble de todo —cuerpo, vida y
+       consecuencias— porque lo que suelta al abrirse ya no es una nube de
+       bichos sino tres procesos hechos y derechos (ver spillTrojan).
+
+       Va centrado en el tile que lo puso, y es el único que lo hace: con 44 de
+       ancho, plantarlo por la esquina izquierda como a todos lo correría media
+       máquina a la derecha del lugar donde el mapa lo pidió. */
     case 'troyano':
-      return { ...base, w: 22, h: 31, y: footY - 31, hp: 18, maxHp: 18, speed: 0.36, charge: 0 };
+      return { ...base, w: 44, h: 62, x: x + TS / 2 - 22, y: footY - 62,
+               hp: 36, maxHp: 36, speed: 0.36, charge: 0 };
 
     /* Arranca disfrazado y quieto. El cartel se resuelve acá y se guarda ya
        elegido: el dibujo no tiene por qué saber de la tabla de cebos.
@@ -60,17 +72,38 @@ export function spawnEnemy(type, x, footY, bait = null) {
                ang: 0, knockback: false, tumbler: 0, combo: rndi(3, 5),
                lock: null, lockCd: rnd(40, 90) };
 
-    /* Máquina de escribir: se agarra de una superficie —suelo o techo— y
-       patrulla hasta tenerte a tiro. Ahí frena, teclea el renglón a la vista
-       y en la campanilla lo transmite entero.
+    /* Keylogger: máquina de escribir agarrada de una superficie —suelo o techo—
+       que patrulla hasta tenerte a tiro y ahí te lee.
 
        Los 16 de alto no son decorativos: con el arma a la altura del pecho de
        Bit, un bicho más bajo que eso le pasa por debajo a todos los disparos
-       rectos y se vuelve imposible de matar de frente. */
+       rectos y se vuelve imposible de matar de frente.
+
+       Vida baja a propósito: lo que lo hace peligroso es lo que sabe, no lo que
+       aguanta, así que acercársele tiene que seguir siendo la respuesta rápida.
+       Todo lo demás vive en KEYLOG (config.js).
+
+         log     últimas acciones leídas de la cinta, en orden
+         pairs   la tabla de pares: 'acción>acción' → cuántas veces la vio
+         learn   0..100, su confianza; es su tasa de acierto, no un reloj
+         cursor  hasta dónde leyó la cinta; gen, para saber si se borró
+         aim     el punto al que va a disparar, una vez elegido
+         eco     la copia fantasma que soltó, si tiene una viva */
     case 'keylogger':
       return { ...base, w: 24, h: 16, y: footY - 16, hp: 8, maxHp: 8, speed: 1.0,
                surface: 1, seg: 0,          // surface: 1 suelo, -1 techo
-               log: [], typeT: 0, strike: 0, ring: 0, burstCd: 0 };
+               log: [], pairs: {}, learn: 0, cursor: 0, gen: -1, idleT: 0, watch: 0,
+               aim: null, lead: 0, guess: null, lockT: 0, judgeT: 0, fail: 0,
+               eco: null, ghostCd: 0,
+               typeT: 0, strike: 0, ring: 0, burstCd: 0 };
+
+    /* Eco: la entrada fantasma que reproduce el Keylogger. No es un proceso
+       hostil sino una grabación, así que no cuenta como baja ni suelta nada
+       (ver killEnemy). `script` es el renglón que repite; `life` lo apaga sí o
+       sí, para que una grabación no se vuelva un enemigo permanente. */
+    case 'eco':
+      return { ...base, w: 13, h: 26, y: footY - 26, hp: 3, maxHp: 3, speed: 1.4,
+               script: [], step: 0, stepT: 0, life: 240, onGround: false };
 
     /* Gusano: si toca el suelo y sobrevive, se duplica. */
     case 'gusano':
@@ -84,7 +117,8 @@ export function spawnEnemy(type, x, footY, bait = null) {
 
     /* ── jefes ── */
     /* Servidor C2 de una botnet: no dispara, ordena. Se engancha a los spambots
-       cercanos la primera vez que corre, y al morir se los lleva con él. */
+       cercanos al armarse el nivel, los vuelve invulnerables mientras aguante, y
+       al morir se los lleva a todos con él. */
     case 'botnet':
       return { ...base, w: 18, h: 30, y: footY - 30, hp: 16, maxHp: 16,
                knockback: false, links: null, pulse: 0 };
@@ -112,9 +146,15 @@ export function spawnEnemy(type, x, footY, bait = null) {
 
     /* Spyware: flota y mira. `watch` son los cuadros seguidos que lleva
        leyéndote; a 300 suena la alarma. */
+    /* Spyware: flota, mira y llama. No dispara nunca.
+         watch    cuadros seguidos que lleva leyéndote; a 300 proyecta
+         cast     cuadros que le quedan al cono de luz antes de traer al invitado
+         castAt   dónde va a caer, ya elegido y a la vista
+         called   cuántos refuerzos trajo: tiene cupo (ver SPY_MAX) */
     case 'spyware':
       return { ...base, w: 16, h: 14, y: footY - 40, hp: 5, maxHp: 5, speed: 0.95,
-               knockback: false, float: rnd(0, 6.28), watch: 0, beam: false, alarm: 0 };
+               knockback: false, float: rnd(0, 6.28), watch: 0, beam: false, alarm: 0,
+               cast: 0, castType: null, castAt: null, called: 0 };
 
     /* Adware: no persigue, tapa. Las ventanas las crea en pleno juego. */
     case 'adware':

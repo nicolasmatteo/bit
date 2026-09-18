@@ -8,6 +8,8 @@ import { LEVELS } from './data/levels.js';
 import { sectorThreats } from './data/bestiary.js';
 import { initAudio, resumeAudio, toggleMute, isMuted, setAmbience, stopAmbience } from './audio.js';
 import { buildDossier, stopDossier } from './render/dossier.js';
+import { SECTOR_LAYERS } from './data/bestiary.js';
+import { loadProgress, markCleared, isUnlocked, furthestUnlocked } from './save.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d', { alpha: false });
@@ -27,9 +29,14 @@ const elPanel = overlay.querySelector('.panel');
 let prevMode = null;
 let pausedFrom = 'play';
 let audioStarted = false;
-/* el menú tiene dos pasos: portada y manual. Sigue siendo el mismo modo 'menu'
-   para el juego — el fondo sigue paneando detrás de los dos */
-let menuStep = 0;
+/* El menú tiene tres pasos: portada, manual y selector de sector. Los tres son
+   el mismo modo 'menu' para el juego — el fondo sigue paneando detrás. */
+const PORTADA = 0, MANUAL = 1, SELECTOR = 2;
+let menuStep = PORTADA;
+
+/* Qué sectores quedaron saneados, leído del disco al arrancar. Un sector se
+   abre cuando el anterior está en esta lista (ver save.js). */
+let cleared = loadProgress(levelCount);
 /* Los procesos hostiles que el jugador ya se cruzó en esta partida. El parte de
    cada sector presenta sólo lo que estrena: repetir a los conocidos convertiría
    el expediente en un trámite y le sacaría el peso a la ficha nueva. */
@@ -173,11 +180,65 @@ function controlsScreen() {
     title: 'Cómo se juega',
     /* sin bajada: las dos chapas de la consola ya dicen qué hace cada mano */
     text: '',
-    button: 'Iniciar barrido',
+    button: 'Elegir sector',
     board: CONTROLS,
   });
   overlay.scrollTop = 0;
 }
+
+/* ─────────────────────────────── el selector de sector
+
+   Once fichas de archivo, una por capa, en el orden en que se rompen. La que
+   todavía no se abrió se ve —el jugador tiene que saber cuánto le falta— pero
+   se ve CERRADA: sin nombre y con el sello de bloqueo, porque el nombre de un
+   sector es medio spoiler y porque lo que se promete es la profundidad, no el
+   contenido.
+
+   Un sector se abre al sanear el anterior, así que la primera partida muestra
+   una sola ficha abierta y diez cerradas. Eso también es información: dice de
+   entrada que el juego tiene once capas y que se bajan en orden. */
+
+function sectorCard(i) {
+  const abierto = isUnlocked(cleared, i);
+  const hecho = cleared[i];
+  const num = String(i + 1).padStart(2, '0');
+  const clases = ['sector', abierto ? 'is-open' : 'is-locked', hecho ? 'is-done' : ''].join(' ');
+  /* `button` y no `div`: navegable con tabulador y con Enter, sin escribir una
+     línea de accesibilidad. El bloqueado va deshabilitado de verdad. */
+  return `<button class="${clases}" data-sector="${i}" ${abierto ? '' : 'disabled'}
+            aria-label="Sector ${num}${abierto ? `: ${LEVELS[i].name}` : ' (bloqueado)'}">
+    <span class="sector__num">${num}</span>
+    <span class="sector__name">${abierto ? LEVELS[i].name : '— — —'}</span>
+    <span class="sector__layer">${abierto ? SECTOR_LAYERS[i] : 'sin acceso'}</span>
+    <span class="sector__mark">${hecho ? 'saneado' : abierto ? 'abierto' : 'cerrado'}</span>
+  </button>`;
+}
+
+function selectScreen() {
+  const siguiente = furthestUnlocked(cleared);
+  const saneados = cleared.filter(Boolean).length;
+  showOverlay({
+    eyebrow: 'Mapa de la intrusión',
+    title: 'Elegí el sector',
+    text: saneados
+      ? `Saneados <b>${saneados}</b> de ${levelCount}. Cada capa se abre cuando cae la anterior.`
+      : 'La intrusión bajó once capas. Se rompen de afuera hacia adentro: cada una se abre cuando cae la anterior.',
+    button: saneados ? `Seguir en ${LEVELS[siguiente].name}` : 'Iniciar barrido',
+    board: `<div class="sectors">${LEVELS.map((_, i) => sectorCard(i)).join('')}</div>`,
+  });
+  overlay.scrollTop = 0;
+}
+
+/* Un clic en una ficha abierta entra directo a ese sector. Va por delegación en
+   el tablero y no ficha por ficha: el tablero se vuelve a escribir entero cada
+   vez que se abre el selector, y los oyentes puestos uno por uno se perderían
+   con él. */
+elBoard.addEventListener('click', ev => {
+  const ficha = ev.target.closest('.sector');
+  if (!ficha || ficha.disabled) return;
+  startAudio();
+  enterSector(Number(ficha.dataset.sector));
+});
 
 /**
  * El parte del sector: qué procesos estrena este tramo. Cuenta qué es cada uno
@@ -209,6 +270,27 @@ function briefingScreen(threats) {
 function startRun() {
   met.clear();
   startLevel(0, false);
+}
+
+/**
+ * Entrar directo a un sector elegido en el selector.
+ *
+ * Lo que no es obvio acá es la línea del expediente. Quien salta al sector 7 no
+ * se cruzó nunca lo de los seis anteriores, así que el parte le presentaría de
+ * golpe las ocho fichas de todo lo que hay en ese mapa — un examen, no un
+ * aviso. Se da por visto lo de las capas previas: el parte vuelve a decir sólo
+ * lo que ESE sector estrena, que es para lo que está.
+ */
+function enterSector(i) {
+  met.clear();
+  for (let previo = 0; previo < i; previo++)
+    for (const entry of sectorThreats(previo)) met.add(entry.type);
+  startLevel(i, false);
+  menuStep = PORTADA;
+  if (!enterLevel()) hideOverlay();
+  prevMode = G.mode;
+  Input.releaseAll();
+  elBtn.blur();
 }
 
 /**
@@ -272,19 +354,31 @@ function winScreen() {
 
 elBtn.addEventListener('click', () => {
   startAudio();
-  if (G.mode === 'menu' && menuStep < 1) {
-    menuStep = 1;
+  /* los dos pasos previos del menú no arrancan nada: pasan de página */
+  if (G.mode === 'menu' && menuStep === PORTADA) {
+    menuStep = MANUAL;
     controlsScreen();
+    Input.releaseAll();
+    return;
+  }
+  if (G.mode === 'menu' && menuStep === MANUAL) {
+    menuStep = SELECTOR;
+    selectScreen();
     Input.releaseAll();
     return;
   }
 
   let briefed = false;
   switch (G.mode) {
-    case 'menu':  menuStep = 0; startRun(); briefed = enterLevel(); break;
+    /* desde el selector, el botón entra por donde quedó la partida anterior;
+       para cualquier otro sector están las fichas */
+    case 'menu':  menuStep = PORTADA; enterSector(furthestUnlocked(cleared)); return;
     case 'pause': G.mode = pausedFrom; break;
     case 'clear': advanceLevel(); briefed = enterLevel(); break;
-    case 'win':   startRun(); briefed = enterLevel(); break;
+    /* terminado el juego, el botón vuelve al selector en vez de reiniciar a la
+       fuerza: con los once sectores abiertos, mandar de prepo al perímetro es
+       tirarle abajo el progreso al que lo quiere rejugar salteado */
+    case 'win':   menuStep = SELECTOR; G.mode = 'menu'; selectScreen(); Input.releaseAll(); return;
     default:      startLevel(G.levelIndex); briefed = enterLevel(); break;
   }
   /* si el sector estrena procesos, la capa se queda con el parte en pantalla */
@@ -365,8 +459,13 @@ function frame(now) {
 
   /* reacción a los cambios de estado */
   if (G.mode !== prevMode) {
-    if (G.mode === 'clear') { clearScreen(); stopAmbience(); }
-    else if (G.mode === 'win') { winScreen(); stopAmbience(); }
+    /* El sector queda saneado acá y en ningún otro lado: 'clear' y 'win' son
+       los dos únicos estados a los que se llega cruzando la salida, así que es
+       el punto exacto donde se gana el permiso para el siguiente. Se guarda en
+       el momento y no al salir del juego — nadie cierra una pestaña con ganas
+       de perder lo que acaba de terminar. */
+    if (G.mode === 'clear') { cleared = markCleared(cleared, G.levelIndex); clearScreen(); stopAmbience(); }
+    else if (G.mode === 'win') { cleared = markCleared(cleared, G.levelIndex); winScreen(); stopAmbience(); }
     prevMode = G.mode;
   }
 }

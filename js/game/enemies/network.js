@@ -6,7 +6,7 @@
    uno coordina, otro intercepta, el otro roba y escapa. */
 
 import { G, P } from '../state.js';
-import { moveActor, groundAhead, rectHitsSolid } from '../world.js';
+import { moveActor, groundAhead, rectHitsSolid, safeStepX, canLand } from '../world.js';
 import { spawnEBullet } from '../projectiles.js';
 import { damagePlayer } from '../combat.js';
 import * as FX from '../fx.js';
@@ -17,21 +17,52 @@ import { aabb, rnd, clamp } from '../../util.js';
    No dispara nunca. Lo que hace es sincronizar: cada tanto manda la orden por
    los cables y todos los spambots enganchados telegrafían a la vez. Solos son
    ráfagas que se esquivan de a una; coordinados, son una pared.
-   Enseña a elegir blanco: el C2 es lo que hay que matar, porque se lleva a
-   todos sus bots con él (ver killEnemy). */
 
-const C2_RANGE = 260;       // radio en el que engancha spambots
-const C2_ORDER = 210;       // cuadros entre órdenes
-export const C2_WARN = 36;  // el pulso viaja por el cable antes de que disparen
+   Enseña a elegir blanco, y no a medias: por el cable no baja sólo la orden,
+   baja también el aguante. Mientras el C2 esté en pie sus bots no reciben ni un
+   punto de daño (ver damageEnemy), y en cuanto cae se apagan todos juntos, en
+   el mismo cuadro (ver killEnemy). No hay camino largo: o el servidor, o nada. */
+
+const C2_RANGE = 260;         // radio en el que engancha spambots
+const C2_ORDER = 210;         // cuadros entre órdenes
+export const C2_WARN = 36;    // el pulso viaja por el cable antes de que disparen
+export const C2_SHIELD = 14;  // cuadros que dura el destello del tiro rebotado
+export const SHIELD_COLOR = '#6ce8ff';
+
+/**
+ * Engancha a los spambots que tenga en rango. Se llama al terminar de armar el
+ * nivel y ya no la primera vez que corre la IA: fuera de cuadro la IA no corre,
+ * y un bot cuyo cable todavía no existe es un bot que se puede matar a tiros —
+ * justo lo que el blindaje viene a impedir.
+ */
+export function linkBots(e) {
+  const cx = e.x + e.w / 2, cy = e.y + e.h / 2;
+  e.links = G.enemies.filter(o => o.type === 'spambot' && !o.dead && !o.c2 &&
+    Math.hypot(o.x + o.w / 2 - cx, o.y + o.h / 2 - cy) < C2_RANGE);
+  for (const o of e.links) o.c2 = e;
+  e.cd = rnd(90, 140);
+}
+
+/**
+ * Un tiro que pegó en un bot enganchado. No entra. El destello sale del bot,
+ * pero lo que se enciende es el cable entero hasta el servidor: lo que hay que
+ * leer no es el golpe, es de dónde le viene el aguante.
+ */
+export function shieldHit(bot) {
+  /* el sonido va sólo en el primer impacto de la tanda: con un arma rápida —o
+     con la purga, que le pega a todos de una— un rechazo por bala se vuelve un
+     ruido continuo que no dice nada. El destello sí va en cada uno. */
+  const first = bot.shield === 0;
+  bot.shield = C2_SHIELD;
+  bot.aggro = Math.max(bot.aggro, 180);
+  const bx = bot.x + bot.w / 2, by = bot.y + bot.h / 2;
+  FX.ring(bx, by, 17, SHIELD_COLOR, { life: 13, width: 2, alpha: 0.9 });
+  FX.spark(bx, by, SHIELD_COLOR, 5, 2.2, [8, 16]);
+  if (first) Sfx.shielded();
+}
 
 export function botnet(e, dx, dy, dist) {
-  if (!e.links) {
-    const cx = e.x + e.w / 2, cy = e.y + e.h / 2;
-    e.links = G.enemies.filter(o => o.type === 'spambot' && !o.dead && !o.c2 &&
-      Math.hypot(o.x + o.w / 2 - cx, o.y + o.h / 2 - cy) < C2_RANGE);
-    for (const o of e.links) o.c2 = e;
-    e.cd = rnd(90, 140);
-  }
+  if (!e.links) linkBots(e);
   e.links = e.links.filter(o => !o.dead);
   if (e.pulse > 0 && --e.pulse === 0) commandBots(e);
 
@@ -123,15 +154,24 @@ export function reflectShot(e, b) {
 
 const EXFIL_STEAL = 3;
 const EXFIL_FLEE = 3.1;     // más que runSpeed (2.7): corriendo solo no lo alcanzás
+const EXFIL_SALTO = 70;     // lo que cruza de un brinco huyendo
+const EXFIL_EMBESTIDA = 84; // lo que avanza una embestida entera
 
 export function exfil(e, dx, dy, dist) {
   e.vy = Math.min(e.vy + 0.55, 11);
 
   if (e.state === 'huida') {
-    moveActor(e, e.fleeDir * EXFIL_FLEE, e.vy, { oneway: false });
+    moveActor(e, safeStepX(e, e.fleeDir * EXFIL_FLEE), e.vy, { oneway: false });
     e.anim += 0.4;
     const probeX = e.fleeDir > 0 ? e.x + e.w + 2 : e.x - 2;
-    if (e.onGround && !groundAhead(probeX, e.y + e.h + 3)) e.vy = -6.2;   // salta pozos
+    if (e.onGround && !groundAhead(probeX, e.y + e.h + 3)) {
+      /* Pozo en la ruta de escape: lo salta si del otro lado hay dónde caer, y
+         si no se da vuelta y escapa para el otro lado. Tirarse igual sería lo
+         peor de los dos mundos — con tus fragmentos adentro, y a un lugar donde
+         ya no se lo puede alcanzar ni matar para recuperarlos. */
+      if (canLand(e, e.fleeDir, EXFIL_SALTO)) e.vy = -6.2;
+      else e.fleeDir = -e.fleeDir;
+    }
     if (e.hitWall && e.onGround) e.vy = -7;                              // y paredes bajas
     /* se escapa apenas cruza el borde de la cámara. El margen tiene que ser
        menor que los 90px con los que updateEnemies deja de correr a los que
@@ -146,7 +186,7 @@ export function exfil(e, dx, dy, dist) {
 
   if (e.lunge > 0) {
     e.lunge--;
-    moveActor(e, e.dir * 4.2, e.vy, { oneway: false });
+    moveActor(e, safeStepX(e, e.dir * 4.2), e.vy, { oneway: false });
     if (!P.dead && P.invuln <= 0 && aabb(P, e)) steal(e, dx);
     else if (e.lunge === 0) e.cd = rnd(70, 110);
     return;
@@ -154,7 +194,13 @@ export function exfil(e, dx, dy, dist) {
 
   if (e.telegraph > 0) {
     moveActor(e, 0, e.vy, { oneway: false });
-    if (--e.telegraph === 0) { e.lunge = 20; e.vy = -3.2; }
+    /* El agazape ya está hecho, pero el salto se decide recién acá: si donde iba
+       a caer no hay piso, se lo traga y espera otra. Un ladrón que se tira al
+       vacío detrás tuyo no es una amenaza, es un regalo que nunca cobrás. */
+    if (--e.telegraph === 0) {
+      if (canLand(e, e.dir, EXFIL_EMBESTIDA)) { e.lunge = 20; e.vy = -3.2; }
+      else e.cd = rnd(50, 80);
+    }
     return;
   }
 
@@ -163,7 +209,7 @@ export function exfil(e, dx, dy, dist) {
     e.state = 'acecho';
     e.dir = Math.sign(dx) || e.dir;
     const creep = Math.abs(dx) > 70 ? e.dir * e.speed : 0;
-    moveActor(e, creep, e.vy, { oneway: false });
+    moveActor(e, safeStepX(e, creep), e.vy, { oneway: false });
     if (creep) e.anim += 0.14;
     if (--e.cd <= 0 && Math.abs(dx) < 120) { e.telegraph = 24; Sfx.telegraph(); }
   } else {

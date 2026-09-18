@@ -1,12 +1,14 @@
 /* Los tres jefes y la regla que sólo ellos tienen: la arena.
 
-   Un jefe no se ahoga ni se pincha —el líquido y las púas son cosa de Bit—, así
-   que uno que se cae de la arena no muere: se va del mapa y desde afuera deja
-   el sector sin final, porque la puerta no abre mientras viva. Por eso acá
-   están el Monarca, el Barón, el Implante, y el piso que ninguno puede dejar. */
+   Ningún enemigo del juego se cae del mapa —eso ya lo garantiza world.js para
+   todos—, pero al jefe no le alcanza con no dar el paso: si algo igual lo saca
+   del piso, vuelve. La puerta del sector no abre mientras el jefe viva, así que
+   un jefe perdido es un nivel sin final; a cualquier otro que se caiga se lo
+   puede dar por perdido y listo. Por eso acá están el Monarca, el Barón, el
+   Implante, y el piso que ninguno de los tres puede dejar. */
 
 import { G, P } from '../state.js';
-import { moveActor, safeGroundBelow, rectHitsSolid } from '../world.js';
+import { moveActor, safeGroundBelow, rectHitsSolid, hasFooting } from '../world.js';
 import { PINK_GAP } from '../../config.js';
 import { spawnEBullet } from '../projectiles.js';
 import * as FX from '../fx.js';
@@ -374,25 +376,22 @@ export function copia(e, dx, dy, dist) {
 
 /* ═══════════════════════════════ la arena de un jefe
 
-   Ningún proceso hostil se ahoga ni se pincha: el líquido y las púas sólo
-   lastiman a Bit. Un jefe que se mete ahí no muere — sigue el pozo para abajo,
-   se va del mapa y desde afuera sigue disparando a un sector que ya no se puede
-   terminar, porque la puerta no abre mientras el jefe viva.
+   Que ningún enemigo se caiga del mapa es regla de la casa y vive en world.js
+   (ver hasFooting). El jefe además tiene esto, que es más terco: no sólo no da
+   el paso que lo dejaría en el aire, sino que si algo igual lo corrió de ahí
+   —el pisotón, un empujón, un mapa que lo puso al borde— vuelve flotando al
+   último lugar donde estuvo bien parado, en vez de caer y apagarse.
 
-   Así que la arena del jefe termina donde termina el piso sano. El paso que lo
-   dejaría sobre líquido, sobre púas o sobre el vacío no se da; y si algo igual
-   lo corrió de ahí (el pisotón, un empujón, un mapa que lo puso al borde), no
-   cae: vuelve flotando al último lugar donde estuvo bien parado. */
+   La diferencia no es capricho: a cualquier otro que se caiga se lo puede dar
+   por perdido, pero la puerta del sector no abre mientras el jefe viva. Un jefe
+   perdido en el vacío es un nivel que no se puede terminar. */
 
 const BOSS_EDGE = 12;        // cuánto se mide hacia adentro de cada costado
 const BOSS_RETURN = 3.2;     // velocidad del regreso, en unidades por cuadro
 
-/** ¿Los dos costados del jefe tienen piso sano debajo? */
-function bossFooting(e, x = e.x) {
-  const y = e.y + e.h - 2;
-  return safeGroundBelow(x + BOSS_EDGE, y) &&
-         safeGroundBelow(x + e.w - BOSS_EDGE, y);
-}
+/** ¿Los dos costados del jefe tienen piso sano debajo? El margen es más ancho
+    que el de cualquier otro porque el jefe también lo es. */
+const bossFooting = (e, x = e.x) => hasFooting(e, x, BOSS_EDGE);
 
 /** Recorta un paso horizontal para que nunca lo saque del piso sano. */
 function bossStepX(e, dx) {

@@ -8,13 +8,32 @@
    para las cinco — un barrido de antivirus y un ping pateaban igual. */
 
 export const WEAPONS = {
+  /* El Ping tira a la cadencia del ping de verdad: UNA por segundo.
+     `ping` en una consola —Windows, Linux o macOS, da igual— manda un eco por
+     segundo y por eso las respuestas salen a razón de una por segundo. El bucle
+     del juego corre a paso fijo de 1000/60 ms (ver main.js), así que `cd: 60`
+     son exactamente esos 1000 ms. No es una aproximación: es el número.
+
+     Eso lo convierte en otra arma. Antes era un goteo de 6 tiros por segundo a
+     2 de daño; ahora es un golpe solo que hay que querer dar, y por eso el daño
+     sube a 8 — un tiro se lleva de una a la mitad liviana del bestiario.
+     Ocho y no doce, que sería el daño por segundo de antes: doce es lo que pega
+     un paquete devuelto con el parry, y el parry tiene que seguir siendo lo que
+     mata de una a casi todo. El arma de fábrica no puede empatarle al premio.
+
+     La sensación acompaña al número: un tiro por segundo con la patada de un
+     goteo se siente roto, así que patea, destella y sacude como lo que es. Eso
+     es todo lo que se tocó además de `cd` y `dmg` — y es todo dibujo. El tamaño
+     del paquete y el empujón del retroceso quedaron como estaban a propósito:
+     uno decide si un tiro roza o no, el otro mueve a Bit, y cambiar el arma de
+     fábrica no tenía por qué cambiar en silencio dónde pega ni dónde quedás. */
   ping: {
     name: 'Ping', tag: 'nativo',
-    cd: 10, dmg: 2, speed: 7.4, ammo: Infinity,
-    pellets: 1, spread: 0, size: [8, 3], color: '#4fd8e8', core: '#e8ffff', trail: 6,
+    cd: 60, dmg: 8, speed: 7.4, ammo: Infinity,
+    pellets: 1, spread: 0, size: [8, 3], color: '#4fd8e8', core: '#e8ffff', trail: 8,
     /* sensación */
-    shot: 'packet', barrel: 13, kick: 5, flash: 6, flashScale: 1, flashPts: 5,
-    shells: 0, push: 0.16, shake: 1.2,
+    shot: 'packet', barrel: 13, kick: 11, flash: 10, flashScale: 1.5, flashPts: 6,
+    shells: 0, push: 0.16, shake: 3,
   },
   /* Balance: el Flood hacía 30 de daño por segundo a cualquier distancia, sin
      contra, con 190 balas — le ganaba a todo. Ahora hace 24, abre más a

@@ -4,8 +4,8 @@
 import { TS, CHECKPOINT_W, CHECKPOINT_H } from '../config.js';
 import { G } from './state.js';
 import { THEMES } from '../data/themes.js';
-import { spawnEnemy } from './enemies.js';
-import { rnd } from '../util.js';
+import { spawnEnemy, linkBots } from './enemies.js';
+import { rnd, clamp } from '../util.js';
 
 export const SOLID = 1;
 
@@ -143,6 +143,18 @@ export function buildLevel(level) {
     }
   }
 
+  /* --- paso 5: cables de las botnets ---
+     Va después de la pasada de entidades porque cada C2 necesita ver a los
+     spambots ya puestos para engancharlos, y no puede esperar a su primer
+     cuadro de IA: sus bots son invulnerables mientras él viva, y eso tiene que
+     valer desde antes de que el servidor entre en cuadro. */
+  for (const e of G.enemies) if (e.type === 'botnet') linkBots(e);
+
+  /* --- paso 6: el padrón del sector ---
+     Qué tipos plantó el mapa. Se toma acá, con la lista recién hecha y todavía
+     sin nada nacido en juego. */
+  G.roster = [...new Set(G.enemies.map(e => e.type))];
+
   if (!G.goal) console.warn('[bit-patrol] el nivel no tiene salida (G)');
 }
 
@@ -247,6 +259,24 @@ export function solidAtPoint(x, y) {
   return solidAt(Math.floor(x / TS), Math.floor(y / TS));
 }
 
+/**
+ * ¿Hay línea limpia entre dos puntos? Muestrea la recta cada medio tile: alcanza
+ * para lo que la usa —saber si un enemigo te tiene a la vista— y no paga el
+ * precio de un trazado exacto. Las losas no cuentan: se ve a través de ellas.
+ *
+ * Existe para que esconderse detrás de algo sea una respuesta de verdad y no una
+ * casualidad. Usado por la IA.
+ */
+export function lineClear(x1, y1, x2, y2) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const pasos = Math.ceil(Math.hypot(dx, dy) / (TS / 2));
+  for (let i = 1; i < pasos; i++) {
+    const t = i / pasos;
+    if (solidAtPoint(x1 + dx * t, y1 + dy * t)) return false;
+  }
+  return true;
+}
+
 /** ¿Hay suelo (sólido o losa) justo debajo de este punto? Usado por la IA. */
 export function groundAhead(x, y) {
   if (solidAtPoint(x, y)) return true;
@@ -282,6 +312,59 @@ export function safeGroundBelow(x, y, depth = 9 * TS) {
     if (groundAhead(x, yy)) return true;
   }
   return false;
+}
+
+/* ─────────────────────────────── piso firme
+
+   Ningún proceso hostil se ahoga ni se pincha: el líquido y las púas sólo
+   lastiman a Bit. Lo que le pasa a un enemigo que se mete ahí es otra cosa, y
+   es peor: sigue el pozo para abajo, se va del mapa y queda cayendo para
+   siempre — vivo, invisible y fuera de alcance. Un gusano así se lleva para
+   siempre un lugar del cupo; un exfiltrador así se lleva tus fragmentos sin que
+   puedas alcanzarlo nunca.
+
+   La regla, entonces: ningún caminante da el paso que lo dejaría sin piso.
+   Es la misma que ya tenía la arena de los jefes (ver bossKeepArena), sacada de
+   ahí y puesta donde puede usarla cualquiera: allá nació porque la puerta no
+   abre mientras el jefe viva, pero el problema nunca fue de los jefes. */
+
+/** ¿Los dos costados de esta caja tienen piso sano debajo, parada en `x`? */
+export function hasFooting(e, x = e.x, inset = 0) {
+  /* El margen se mide hacia adentro de cada costado, y se achica con el bicho:
+     con un margen fijo, algo más angosto que el doble del margen mediría dos
+     veces el mismo punto y algo más ancho que un tile no tendría "piso" nunca
+     parado sobre una columna de un tile. */
+  const m = inset || clamp(e.w * 0.25, 2, 6);
+  const y = e.y + e.h - 2;
+  return safeGroundBelow(x + m, y) && safeGroundBelow(x + e.w - m, y);
+}
+
+/**
+ * Recorta un paso horizontal para que nunca deje al que lo da sobre el vacío.
+ * Devuelve 0 si ese paso no se puede dar, así quien llama puede además decidir
+ * algo —darse vuelta, cortar la embestida— en vez de sólo quedarse quieto.
+ *
+ * En el aire no recorta nada: lo que ya está volando sigue su arco, y frenarlo
+ * en seco a mitad de un salto sobre un pozo sería justamente tirarlo adentro.
+ * Quien salta tiene que mirar ANTES de saltar, con `canLand`.
+ */
+export function safeStepX(e, dx, inset = 0) {
+  if (dx === 0 || !e.onGround) return dx;
+  return hasFooting(e, e.x + dx, inset) ? dx : 0;
+}
+
+/** ¿Hay dónde caer si salto `reach` píxeles hacia `dir`? Se mira antes de saltar. */
+export function canLand(e, dir, reach) {
+  return hasFooting(e, e.x + dir * reach);
+}
+
+/**
+ * ¿Se fue del mundo? Es la última red: lo que ya está cayendo fuera del mapa no
+ * vuelve, no se puede pelear y no se puede ver. Lo usa updateEnemies para
+ * apagarlo en vez de dejarlo cayendo para siempre.
+ */
+export function outOfWorld(e) {
+  return e.y > G.mapH + 40;
 }
 
 /* ─────────────────────────────── movimiento */
