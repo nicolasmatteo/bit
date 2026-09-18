@@ -10,7 +10,7 @@ import { C2_WARN } from '../../game/enemies.js';
 import { rgba, mix, lerp, glow } from '../../util.js';
 import {
   INK, boil, inked, hose, disc, pill, shadeHalf, teeth,
-  starPath, shine, groundShadow,
+  starPath, shine, groundShadow, label, BODY,
 } from '../ink.js';
 import { STEEL_D, LW, LWD, eye, brows } from './base.js';
 import { monarca, baron, implanteChip } from './bosses.js';
@@ -656,65 +656,119 @@ function troyano(ctx, e, th, hostile, flash) {
   }
 }
 
+/* Keylogger: una máquina de escribir, y a propósito la única cosa del reparto
+   que no tiene cara de bicho. Todo lo demás son criaturas redondas con dos ojos
+   y dientes; ésta es un aparato — chasis rectangular, rodillo, carro y teclado—
+   con un solo ojo de vidrio arriba del carro, que es lo que la deja adentro de
+   la regla de la casa. Se la reconoce de lejos por la silueta: donde los otros
+   son panza, ésta es máquina.
+
+   El renglón que escribió no es adorno: `e.log` son las teclas que ya registró
+   y todavía no transmitió, y se dibujan sobre el rodillo. Eso es el aviso. */
 function keylogger(ctx, e, th, hostile, flash) {
-  const cap = flash ? '#ffffff' : '#e2dccc';
+  const body = flash ? '#ffffff' : '#8a77a6';
+  const cap  = flash ? '#ffffff' : '#e2dccc';
   const x = e.x + e.w / 2, y = e.y + e.h / 2, s = e.surface;
+  const typing = e.state === 'registro';
+  const hit = e.strike > 0 ? Math.sin((8 - e.strike) / 8 * Math.PI) : 0;
 
   ctx.save();
-  ctx.translate(x + boil(e.x, 0.25), y + boil(e.x + 6, 0.25));
+  ctx.translate(x + boil(e.x, 0.22), y + boil(e.x + 6, 0.22));
   ctx.scale(e.dir, s);      // el eje vertical se invierte si va por el techo
 
-  /* patas: oleada de atrás hacia adelante */
-  for (let i = -2; i <= 1; i++) {
+  /* patitas de barra de tipos: cuatro, en oleada */
+  for (let i = -1; i <= 2; i++) {
+    const lx = i * 5 - 3.5;
     const ph = e.seg + i * 0.9;
-    const lx = i * 4.6 - 1;
     ctx.beginPath();
-    ctx.moveTo(lx, 1.6);
-    ctx.quadraticCurveTo(lx + Math.sin(ph) * 1.6, 4.4, lx + Math.sin(ph) * 2.6, 6.2);
+    ctx.moveTo(lx, 5.2);
+    ctx.quadraticCurveTo(lx + Math.sin(ph) * 1.4, 7.4, lx + Math.sin(ph) * 2.4, 8.6);
     ctx.strokeStyle = INK; ctx.lineWidth = 1.5; ctx.lineCap = 'round';
     ctx.stroke();
   }
 
-  /* segmentos: cada uno es un keycap con su letra borrosa */
-  for (let i = -2; i <= 0; i++) {
-    const lx = i * 4.8 - 0.5;
-    const lift = Math.sin(e.seg + i * 0.8) * 1.2;
-    pill(ctx, lx - 2.7, -3.6 + lift, 5.4, 5.4, 1.3);
-    ctx.fillStyle = cap;
-    ctx.fill();
-    shadeHalf(ctx, lx, -1 + lift, 3, 0.18);
-    ctx.strokeStyle = INK; ctx.lineWidth = 1.4;
-    ctx.stroke();
-    ctx.fillStyle = rgba(INK, 0.5);
-    ctx.fillRect(lx - 1.1, -1.8 + lift, 2.2, 1.5);
+  /* chasis: cuña de máquina, más alta atrás que adelante */
+  ctx.beginPath();
+  ctx.moveTo(-11, 5.4);
+  ctx.lineTo(-11.5, -1.6);
+  ctx.lineTo(-6, -4.4);
+  ctx.lineTo(9.5, -4.4);
+  ctx.lineTo(11.5, 0.6);
+  ctx.lineTo(10.5, 5.4);
+  ctx.closePath();
+  inked(ctx, body, LW);
+  shadeHalf(ctx, 0, 1.5, 11, 0.18);
+
+  /* teclado: dos filas de teclitas escalonadas. La que está golpeando se hunde */
+  for (let row = 0; row < 2; row++) {
+    for (let i = 0; i < 4; i++) {
+      const kx = -8 + i * 4.2 + row * 1.5;
+      const ky = 3.2 - row * 2.4;
+      const down = typing && hit > 0 && i === (e.log.length + row) % 4 ? hit * 1.1 : 0;
+      pill(ctx, kx - 1.5, ky - 1.3 + down, 3, 2.6, 0.9);
+      ctx.fillStyle = cap; ctx.fill();
+      ctx.strokeStyle = INK; ctx.lineWidth = 1; ctx.stroke();
+    }
   }
 
-  /* cabeza grande, con antenas y sonrisa */
-  const hx = 8;
-  ctx.beginPath();
-  ctx.ellipse(hx, -1, 5.6, 5, 0, 0, 6.283);
-  ctx.fillStyle = flash ? '#ffffff' : '#a892d4';
-  ctx.fill();
-  shadeHalf(ctx, hx, -1, 5.6, 0.16);
-  ctx.strokeStyle = INK; ctx.lineWidth = LW + 0.2;
-  ctx.stroke();
-
-  for (const side of [-1, 1]) {
+  /* la hoja: sale del rodillo mientras escribe, y se corta al transmitir. Va
+     antes que el carro para que las teclas registradas se apoyen sobre ella */
+  if (typing || e.log.length) {
     ctx.beginPath();
-    ctx.moveTo(hx + 1, -4.6);
-    ctx.quadraticCurveTo(hx + 5, -7.5 + side * 1.5, hx + 6.5, -9.5 + side * 2.5);
-    ctx.strokeStyle = INK; ctx.lineWidth = 1.3; ctx.lineCap = 'round';
-    ctx.stroke();
-    disc(ctx, hx + 6.8, -9.8 + side * 2.6, 1.1, hostile, 0.8);
+    ctx.moveTo(-3, -7.2);
+    ctx.lineTo(-3.6, -13 - e.log.length * 0.9);
+    ctx.lineTo(4.4, -13 - e.log.length * 0.9);
+    ctx.lineTo(3.8, -7.2);
+    ctx.closePath();
+    inked(ctx, flash ? '#ffffff' : '#f6e7c4', 1.2);
   }
 
-  eye(ctx, hx - 1.4, -1.8, 2.3, 1, hostile, true);
-  eye(ctx, hx + 3, -2, 2.5, 1, hostile, true);
+  /* rodillo y carro, atravesados arriba; el carro corre con el renglón */
+  const run = e.log.length / 3;
+  ctx.save();
+  ctx.translate(-2.5 + run * 5, -5.6);
   ctx.beginPath();
-  ctx.arc(hx + 1, 1.4, 2.8, 0.15, Math.PI - 0.15);
-  ctx.strokeStyle = INK; ctx.lineWidth = 1.2; ctx.lineCap = 'round';
+  ctx.moveTo(-8, 0); ctx.lineTo(8, 0);
+  ctx.strokeStyle = INK; ctx.lineWidth = 1.4; ctx.lineCap = 'round';
   ctx.stroke();
-  teeth(ctx, hx - 1.4, 1.4, 4.8, 1.5, 4);
+  pill(ctx, -7.5, -3.4, 15, 3.6, 1.8);
+  inked(ctx, flash ? '#ffffff' : '#4a3d5c', 1.4);
+  shine(ctx, -3.5, -2.6, 3.4, 0.7, 0, 0.35);
+
+  /* el renglón registrado: una tecla por golpe, a la vista sobre el rodillo */
+  for (let i = 0; i < e.log.length; i++) {
+    const kx = -5 + i * 5;
+    const pop = i === e.log.length - 1 ? hit * 1.6 : 0;
+    pill(ctx, kx - 2, -7.6 - pop, 4, 4, 1.1);
+    inked(ctx, cap, 1.2);
+    ctx.save();
+    ctx.scale(e.dir, s);      // la letra se lee derecha, mire para donde mire
+    label(ctx, e.log[i], e.dir * kx, s * (-5.6 - pop) + 1.5, 4.4, INK, 'center', '0', 0, BODY);
+    ctx.restore();
+  }
+  ctx.restore();
+
+  /* ojo de vidrio sobre el carro: lo único vivo de la máquina */
+  const ex = 5.5, ey = -1.4;
+  disc(ctx, ex, ey, 3.4, flash ? '#ffffff' : '#241d33', LW);
+  ctx.save();
+  ctx.scale(e.dir, s);
+  eye(ctx, e.dir * ex, s * ey, 2.2, 1, hostile, typing || e.aggro > 0);
+  ctx.restore();
+
+  /* campanilla: cuelga del chasis y tiembla cuando el renglón se fue */
+  const ring = e.ring > 0 ? Math.sin(e.ring * 0.9) * 1.3 : 0;
+  disc(ctx, -8.6 + ring, -2.6, 2.1, flash ? '#ffffff' : '#e8a63d', 1.4);
+  if (e.ring > 0) {
+    ctx.strokeStyle = rgba('#ffe7bd', 0.5);
+    ctx.lineWidth = 1;
+    for (const r of [4, 6.5]) {
+      ctx.beginPath();
+      ctx.arc(-8.6, -2.6, r + (18 - e.ring) * 0.3, -2.4, -0.4);
+      ctx.stroke();
+    }
+  }
+
   ctx.restore();
 }
 

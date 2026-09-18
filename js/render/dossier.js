@@ -1,24 +1,26 @@
-/* Expediente de amenazas: la grilla de fichas que se ve antes del primer
-   sector. Cada ilustración es el enemigo de verdad, dibujado por drawEnemy
+/* El parte de amenazas: la grilla de fichas que se pasa al entrar a un sector
+   que estrena procesos. Quién entra en la grilla lo decide quien la pide —acá
+   sólo se dibuja—, y son siempre pocas: las que ese sector trae de nuevas.
+   Cada ilustración es el enemigo de verdad, dibujado por drawEnemy
    sobre un lienzo chico — no una imagen aparte que haya que mantener. Si
    mañana se retoca un enemigo, su ficha cambia sola. */
 
 import { spawnEnemy } from '../game/enemies.js';
 import { drawEnemy } from './actors.js';
-import { BESTIARY, SECTOR_LAYERS } from '../data/bestiary.js';
+import { SECTOR_LAYERS } from '../data/bestiary.js';
 
 const THUMB_W = 150, THUMB_H = 104;
 
 let cards = [];
 let raf = 0;
 
-/** Arma las fichas dentro de `root`. Se puede llamar más de una vez. */
-export function buildDossier(root) {
+/** Arma las fichas de `entries` dentro de `root`. Se puede llamar más de una vez. */
+export function buildDossier(root, entries) {
   stopDossier();
   root.innerHTML = '';
   cards = [];
 
-  for (const entry of BESTIARY) {
+  for (const entry of entries) {
     /* el enemigo de muestra: nace en coordenadas propias, lejos del mapa, y
        se le pisa la pose de la ficha */
     const e = spawnEnemy(entry.type, 0, 100);
@@ -38,8 +40,8 @@ export function buildDossier(root) {
 
     const tag = document.createElement('p');
     tag.className = 'threat__tag';
-    const layer = SECTOR_LAYERS[entry.sector - 1];
-    tag.textContent = `Sector ${String(entry.sector).padStart(2, '0')} · ${layer}${entry.boss ? ' · jefe' : ''}`;
+    /* el número de sector ya lo dice el rótulo del parte: acá sobra */
+    tag.textContent = SECTOR_LAYERS[entry.sector - 1] + (entry.boss ? ' · jefe' : '');
 
     const name = document.createElement('h2');
     name.className = 'threat__name display';

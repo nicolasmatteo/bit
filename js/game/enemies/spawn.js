@@ -60,13 +60,17 @@ export function spawnEnemy(type, x, footY, bait = null) {
                ang: 0, knockback: false, tumbler: 0, combo: rndi(3, 5),
                lock: null, lockCd: rnd(40, 90) };
 
-    /* Ciempiés: camina pegado a una superficie y deja teclas flotando detrás.
-       Los 14 de alto no son decorativos: con el arma a la altura del pecho de
+    /* Máquina de escribir: se agarra de una superficie —suelo o techo— y
+       patrulla hasta tenerte a tiro. Ahí frena, teclea el renglón a la vista
+       y en la campanilla lo transmite entero.
+
+       Los 16 de alto no son decorativos: con el arma a la altura del pecho de
        Bit, un bicho más bajo que eso le pasa por debajo a todos los disparos
        rectos y se vuelve imposible de matar de frente. */
     case 'keylogger':
-      return { ...base, w: 22, h: 14, y: footY - 14, hp: 7, maxHp: 7, speed: 1.05,
-               surface: 1, seg: 0 };   // surface: 1 suelo, -1 techo
+      return { ...base, w: 24, h: 16, y: footY - 16, hp: 8, maxHp: 8, speed: 1.0,
+               surface: 1, seg: 0,          // surface: 1 suelo, -1 techo
+               log: [], typeT: 0, strike: 0, ring: 0, burstCd: 0 };
 
     /* Gusano: si toca el suelo y sobrevive, se duplica. */
     case 'gusano':

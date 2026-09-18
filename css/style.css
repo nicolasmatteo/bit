@@ -64,6 +64,7 @@ body{
   inset:0;
   display:grid;
   place-items:center;
+  place-items:safe center;   /* con el rótulo alto, que no se recorte arriba */
   padding:max(1.6rem, env(safe-area-inset-top)) 1.25rem max(1.6rem, env(safe-area-inset-bottom));
   background:
     radial-gradient(120% 95% at 50% 38%, rgba(96,32,26,.80) 0%, rgba(42,18,16,.94) 58%, rgba(20,10,9,.985) 100%);
@@ -74,7 +75,9 @@ body{
 /* pátina de película, también sobre la interfaz */
 .overlay::after{
   content:'';
-  position:absolute;
+  /* fija, no absoluta: con el temblor sobresale medio lienzo por cada lado, y
+     en absoluta eso volvía la capa rodable aunque el rótulo entrara entero */
+  position:fixed;
   inset:-50%;
   background-image:var(--grain);
   opacity:.16;
@@ -207,6 +210,7 @@ h1.display em{
   max-width:32rem;
   margin:0 auto;
 }
+.lede:empty{display:none}
 .lede b{color:var(--ink)}
 .lede i{color:var(--red-deep);font-style:normal;font-weight:700}
 .lede .sep{display:block;height:1rem}
@@ -247,14 +251,23 @@ h1.display em{
 
 /* ---------------------------------------------- expediente de amenazas */
 
-/* el rótulo se ensancha para la grilla; en el resto de las pantallas no */
-.panel.is-wide{width:min(66rem,100%)}
+/* el rótulo se ensancha lo que pida la grilla y ni un dedo más: un parte de
+   una sola ficha en un cartel de seis columnas se lee como un error */
+.panel.is-wide{width:min(max(30rem, calc(var(--sheets,3) * 14rem + 12rem)),100%)}
+/* el parte es corto: el titular no necesita el cuerpo de la portada */
+.panel.is-wide h1.display{font-size:clamp(1.6rem,3.4vw,2.6rem)}
+.panel.is-wide .cta{white-space:nowrap}
+/* y también para el tablero de controles de la portada */
+.panel.is-board{width:min(56rem,100%)}
 
 .dossier{
   display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(11.5rem,1fr));
+  /* auto-fit contra un ancho máximo atado a cuántas fichas hay: con sitio
+     entran todas en una fila, y cuando falta se van apilando solas */
+  grid-template-columns:repeat(auto-fit,minmax(11.5rem,1fr));
   gap:1rem;
-  margin:1.8rem 0 0;
+  max-width:calc(var(--sheets,3) * 14rem);
+  margin:1.6rem auto 0;
   text-align:left;
 }
 .dossier[hidden]{display:none}
@@ -363,6 +376,7 @@ h1.display em{
   line-height:2.5;
   text-transform:uppercase;
 }
+.hint:empty{display:none}
 .hint b{color:var(--red-deep)}
 .hint kbd{
   font-family:'Bowlby One SC',Georgia,serif;
@@ -376,16 +390,163 @@ h1.display em{
   margin:0 .15em;
 }
 
-/* ---------------------------------------------- el teclado de la portada
-   Las teclas se dibujan donde están en el teclado de verdad, con el escalón
-   de cada fila: la mano se apoya en la figura, no en la lista. */
+/* el título de la página del manual es largo: baja de cuerpo para que entre
+   de una línea aun en pantallas angostas */
+.panel.is-board h1.display{font-size:clamp(1.5rem,6vw,2.8rem)}
 
-.keys{
+/* ---------------------------------------------- el tablero de la portada
+   Cómo se juega, dicho en grande: primero los tres golpes que definen a Bit,
+   en cartelitos con su cinta; abajo, la consola oscura con las teclas puestas
+   donde caen los dedos. El cartón crema contra el granate del telón: lo que
+   importa se ve desde la otra punta de la sala. */
+
+.board{
+  width:100%;
+  min-width:0;
+  margin-top:2.4rem;
   display:flex;
   flex-direction:column;
   align-items:center;
-  gap:.9rem;
+  gap:1.35rem;
+}
+.board[hidden]{display:none}
+
+/* ---- los tres golpes maestros ---- */
+
+.moves{
+  list-style:none;
+  width:100%;
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:center;
+  gap:1rem;
+}
+.move{
+  --acc:var(--red);
+  position:relative;
+  flex:1 1 11rem;
+  max-width:14.5rem;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:.45rem;
+  padding:1.6rem .85rem .95rem;   /* el hueco de arriba es de la cinta */
+  background:var(--paper);
+  border:3px solid var(--ink);
+  border-radius:12px;
+  box-shadow:6px 7px 0 rgba(25,19,16,.5);
+  text-align:center;
+  animation:deal .42s var(--ease) both;
+}
+.move:nth-child(odd){rotate:-.7deg}
+.move:nth-child(even){rotate:.6deg}
+.move:nth-child(2){animation-delay:.07s}
+.move:nth-child(3){animation-delay:.14s}
+
+@keyframes deal{
+  from{opacity:0;transform:translateY(16px) scale(.93)}
+  to  {opacity:1;transform:none}
+}
+
+/* el parry es la firma de la casa: late para que se lo mire primero */
+.move--star{animation:deal .42s var(--ease) both, halo 2.4s ease-in-out .7s infinite}
+@keyframes halo{
+  0%,100%{box-shadow:6px 7px 0 rgba(25,19,16,.5), 0 0 0 0    rgba(255,110,199,.6)}
+  55%    {box-shadow:6px 7px 0 rgba(25,19,16,.5), 0 0 0 .6rem rgba(255,110,199,0)}
+}
+
+/* la cinta con el nombre del golpe, cruzada sobre el borde de arriba */
+.move__tag{
+  position:absolute;
+  top:-.78rem;
+  left:50%;
+  translate:-50% 0;
+  padding:.3em 1.05em .36em;
+  background:var(--acc);
+  color:var(--paper);
+  border:3px solid var(--ink);
+  border-radius:999px;
+  box-shadow:0 3px 0 var(--ink);
+  font-family:'Bowlby One SC',Georgia,serif;
+  font-size:.64rem;
+  letter-spacing:.14em;
+  text-indent:.14em;
+  text-transform:uppercase;
+  white-space:nowrap;
+}
+/* el glifo va en su chapa redonda, igual que los botones de la capa táctil:
+   así los tres pesan lo mismo aunque el signo de cada uno sea de otro cuerpo */
+.move__glyph{
+  display:grid;
+  place-items:center;
+  width:2.7rem;
+  height:2.7rem;
+  margin-bottom:.15rem;
+  background:var(--acc);
+  color:var(--paper);
+  border:3px solid var(--ink);
+  border-radius:999px;
+  box-shadow:0 4px 0 var(--ink);
+  font-size:1.25rem;
   line-height:1;
+}
+.move--gold .move__glyph{color:var(--ink)}
+.move__key{
+  font-family:'Bowlby One SC',Georgia,serif;
+  font-size:.74rem;
+  letter-spacing:.05em;
+  background:var(--paper);
+  border:2px solid var(--ink);
+  border-radius:5px;
+  box-shadow:0 3px 0 var(--ink);
+  padding:.24em .75em .32em;
+  color:var(--ink);
+  white-space:nowrap;
+}
+.move__txt{
+  font-size:.64rem;
+  line-height:1.75;
+  letter-spacing:.03em;
+  color:var(--ink-soft);
+}
+.move__txt b{color:var(--red-deep)}
+
+/* el rosa significa lo mismo en todas las capas: parry */
+.move--pink{--acc:var(--pink)}
+.move--gold{--acc:var(--gold)}
+.move--gold .move__tag{color:var(--ink)}
+.move--cyan{--acc:var(--cyan)}
+
+/* ---- la consola: las teclas donde caen los dedos ---- */
+
+.keys{
+  position:relative;
+  width:100%;
+  min-width:0;
+  max-width:100%;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:1rem;
+  padding:1.15rem clamp(.7rem,2.6vw,1.5rem) 1.3rem;
+  background:var(--curtain);
+  border:4px solid var(--ink);
+  border-radius:14px;
+  box-shadow:
+    7px 8px 0 rgba(25,19,16,.5),
+    inset 0 0 0 3px rgba(246,231,196,.14),
+    inset 0 0 0 5px rgba(201,56,47,.55);
+  line-height:1;
+}
+/* la consola también tiene grano, como todo lo demás */
+.keys::before{
+  content:'';
+  position:absolute;
+  inset:0;
+  border-radius:10px;
+  background-image:var(--grain);
+  opacity:.16;
+  pointer-events:none;
 }
 .keys__hands{
   display:flex;
@@ -395,74 +556,182 @@ h1.display em{
   flex-wrap:wrap;
 }
 
-.hand{display:flex;flex-direction:column;align-items:flex-start;gap:.3rem}
+.hand{display:flex;flex-direction:column;align-items:flex-start;gap:.35rem}
 .hand__t{
   align-self:center;
-  margin-bottom:.35rem;
+  margin-bottom:.5rem;
+  padding:.2em .8em .26em;
+  background:var(--gold);
+  color:var(--ink);
+  border:2px solid var(--ink);
+  border-radius:999px;
+  box-shadow:0 3px 0 var(--ink);
   font-family:'Bowlby One SC',Georgia,serif;
-  font-size:.52rem;
-  letter-spacing:.16em;
-  line-height:1.4;
-  color:var(--red-deep);
+  font-size:.56rem;
+  letter-spacing:.14em;
+  text-indent:.14em;
+  text-transform:uppercase;
+  line-height:1.3;
+  white-space:nowrap;
 }
 
-.krow{display:flex;gap:.3rem}
+.krow{display:flex;gap:.35rem}
 /* el escalón de las filas, igual que en el teclado físico */
-.krow--home{margin-left:.85rem}
-.krow--low {margin-left:1.7rem}
-.krow--u   {margin-left:.55rem}
+.krow--home{margin-left:1rem}
+.krow--low {margin-left:2rem}
+.krow--u   {margin-left:.65rem}
+/* la barra de espacio ocupa el ancho de la consola y se encoge con ella:
+   sin esto, su ancho fijo estiraba el rótulo entero en ventanas angostas */
+.krow--bar{width:100%;justify-content:center}
 
 .key{
   display:flex;
   flex-direction:column;
   align-items:center;
   justify-content:center;
-  gap:.22em;
-  min-width:3.5rem;
-  padding:.38rem .4rem .42rem;
+  gap:.3em;
+  min-width:4.15rem;
+  padding:.45rem .45rem .5rem;
   background:var(--paper);
-  border:2px solid var(--ink);
-  border-radius:5px;
-  box-shadow:0 3px 0 var(--ink);
+  border:3px solid var(--ink);
+  border-radius:7px;
+  box-shadow:0 4px 0 var(--ink);
   color:var(--ink);
   font-family:'Bowlby One SC',Georgia,serif;
   line-height:1;
 }
-.key b{font-size:.7rem;letter-spacing:.05em}
+.key b{font-size:.95rem;letter-spacing:.04em}
 .key i{
   font-style:normal;
-  font-size:.48rem;
-  letter-spacing:.06em;
+  font-size:.53rem;
+  letter-spacing:.05em;
   line-height:1.2;
-  color:var(--paper-dim);
+  color:var(--ink-soft);
   white-space:nowrap;
 }
-.key--wide{min-width:5rem}
-.key--bar {min-width:min(19rem, 78vw)}
-/* el rosa significa lo mismo en todas las capas: parry */
-.key--pink{background:var(--pink);color:var(--paper)}
-.key--pink i{color:var(--paper)}
+.key--wide{min-width:5.6rem}
+.key--bar {flex:0 1 22rem;min-width:0;max-width:100%}
+.key--bar i{white-space:normal}
+
+/* las teclas de pelear van con el color de lo que hacen */
+.key--red {background:var(--red);  color:var(--paper)}
+.key--pink{background:var(--pink); color:var(--paper)}
+.key--cyan{background:var(--cyan); color:var(--paper)}
+.key--teal{background:var(--teal); color:var(--ink)}
+.key--gold{background:var(--gold); color:var(--ink)}
+.key--red i,.key--pink i,.key--cyan i{color:rgba(246,231,196,.92)}
+.key--teal i,.key--gold i{color:rgba(25,19,16,.7)}
 
 .keys__alt{
-  max-width:30rem;
-  font-size:.56rem;
+  position:relative;
+  max-width:34rem;
+  font-size:.58rem;
   line-height:2.2;
-  color:var(--paper-dim);
+  letter-spacing:.04em;
+  color:var(--paper-lo);
   text-align:center;
 }
-.keys__alt .sep{display:block;height:.35rem}
+.keys__alt .sep{display:block;height:.4rem}
+.keys__alt kbd{
+  font-family:'Bowlby One SC',Georgia,serif;
+  font-size:.56rem;
+  background:var(--paper);
+  border:2px solid var(--ink);
+  border-radius:4px;
+  box-shadow:0 2px 0 var(--ink);
+  padding:.1em .42em .18em;
+  color:var(--ink);
+  margin:0 .12em;
+  white-space:nowrap;
+}
 
 /* con dedos en vez de teclado, el dibujo del teclado sobra */
 .keys__touch{display:none}
 @media (pointer: coarse){
   .keys{display:none}
-  .keys__touch{display:block}
+  /* sin teclado no hay tecla que mostrar: la chapa del glifo ya es el botón */
+  .move__key{display:none}
+  .keys__touch{
+    display:block;
+    max-width:26rem;
+    font-size:.68rem;
+    line-height:1.9;
+    letter-spacing:.04em;
+    color:var(--paper-dim);
+  }
+  .keys__touch b{color:var(--red-deep)}
+}
+
+@media (max-width: 34rem){
+  .move{flex:1 1 100%;max-width:22rem}
 }
 @media (max-width: 30rem), (max-height: 34rem){
-  .key{min-width:2.9rem;padding:.3rem .3rem .34rem}
-  .key b{font-size:.62rem}
-  .key i{font-size:.44rem}
-  .key--wide{min-width:4.1rem}
+  .key{min-width:3.3rem;padding:.34rem .32rem .38rem;border-width:2px}
+  .key b{font-size:.78rem}
+  .key i{font-size:.46rem}
+  .key--wide{min-width:4.5rem}
+  .krow--low{margin-left:1.4rem}
+}
+
+@media (prefers-reduced-motion: reduce){
+  .move{animation:none;rotate:none}
+  .move--star{animation:none}
+}
+
+/* ---------------------------------------------- el tablero en horizontal
+   En su propia página el tablero se abre al costado: los tres golpes en una
+   columna y la consola en la otra, las dos arrancando a la misma altura. Así
+   entra entero en la pantalla y nadie tiene que rodar el papel. En pantallas
+   angostas —o con dedos en vez de teclado— vuelve a apilarse. */
+
+@media (min-width: 58rem) and (pointer: fine){
+  .panel.is-board{
+    width:min(68rem,100%);
+    padding-top:clamp(1.3rem,3vw,2rem);
+    padding-bottom:clamp(1.3rem,3vw,2rem);
+  }
+  .panel.is-board h1.display{font-size:clamp(1.6rem,3.4vw,2.1rem)}
+  .panel.is-board .eyebrow{margin-bottom:.6rem}
+  .panel.is-board .rule{margin:.75rem auto;width:7rem}
+  .panel.is-board .lede{font-size:.78rem;line-height:1.7}
+  .panel.is-board .cta{margin-top:1.1rem}
+
+  .board{
+    display:grid;
+    grid-template-columns:minmax(0,.92fr) minmax(0,1.5fr);
+    column-gap:clamp(1rem,2vw,1.8rem);
+    align-items:start;
+    margin-top:1rem;
+  }
+
+  /* los golpes se acuestan: la chapa a la izquierda, el nombre y la tecla al
+     lado, y el texto debajo. En columna angosta leen mejor así que en cartel */
+  .moves{flex-direction:column;flex-wrap:nowrap;gap:.7rem}
+  .move{
+    flex:0 0 auto;
+    max-width:none;
+    flex-flow:row wrap;
+    align-items:center;
+    justify-content:flex-start;
+    gap:.35rem .5rem;
+    padding:.7rem .8rem .75rem;
+    text-align:left;
+  }
+  .move__glyph{order:1;width:2.1rem;height:2.1rem;margin:0;font-size:1rem;box-shadow:0 3px 0 var(--ink)}
+  .move__tag{order:2;position:static;translate:none;font-size:.58rem;padding:.24em .78em .3em;box-shadow:0 2px 0 var(--ink)}
+  .move__key{order:3;font-size:.6rem;padding:.2em .55em .26em}
+  .move__txt{order:4;flex:1 0 100%;font-size:.6rem;line-height:1.65}
+
+  /* la consola se ajusta el cinturón: las dos manos tienen que entrar en una
+     sola fila, porque partidas se estiran para abajo y vuelve la rueda */
+  .keys{gap:.75rem;padding:.9rem .8rem .95rem}
+  .keys__hands{gap:clamp(1rem,2vw,1.8rem)}
+  .hand__t{margin-bottom:.4rem}
+  .key{min-width:3.7rem;padding:.36rem .32rem .4rem}
+  .key b{font-size:.82rem}
+  .key i{font-size:.48rem}
+  .key--wide{min-width:4.9rem}
+  .keys__alt{font-size:.52rem;line-height:1.75}
 }
 
 /* ---------------------------------------------- chip de sonido */

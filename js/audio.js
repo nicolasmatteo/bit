@@ -254,6 +254,19 @@ export const Sfx = {
     blips([1047, 1319, 1568, 2093], { step: .07, len: .1, peak: .06, type: 'triangle', at: .7 });
   },
 
+  /* golpe de tipo: la barra contra el rodillo. Seco, de madera y metal */
+  keystroke() {
+    noiseHit({ freq: 2600, q: 2.2, peak: .09, attack: .001, decay: .025, dirty: true });
+    tone({ freq: 420, to: 260, peak: .05, attack: .001, decay: .04, type: 'square', dirty: true });
+  },
+
+  /* campanilla de fin de renglón: lo que avisa que el registro sale entero */
+  bell() {
+    tone({ freq: 2093, peak: .1, attack: .002, decay: .38, type: 'sine' });
+    tone({ freq: 3136, peak: .05, attack: .002, decay: .26, type: 'sine', at: .01 });
+    noiseHit({ freq: 5200, q: 1.4, peak: .05, decay: .1, type: 'highpass' });
+  },
+
   /* alerta: dos tonos alternados, como una alarma de sistema */
   telegraph() {
     tone({ freq: 988, peak: .06, attack: .002, decay: .07, type: 'square', dirty: true });

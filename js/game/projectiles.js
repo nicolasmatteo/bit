@@ -47,11 +47,12 @@ export function spawnEBullet(x, y, vx, vy, opts = {}) {
   const {
     size = 4, color = null, g = 0, bomb = false, heavy = false,
     life = 240, corrupt = false, key = false, popup = false, glyph = false,
+    letter = '',
   } = opts;
   G.ebullets.push({
     x: x - size / 2, y: y - size / 2, w: size, h: size,
     vx, vy, g, color: corrupt ? '#ff6ec7' : (color || G.theme.hostile),
-    bomb, heavy, life, corrupt, key, popup, glyph, t: 0,
+    bomb, heavy, life, corrupt, key, popup, glyph, letter, t: 0,
     /* semilla fija del paquete. `x` no sirve para sortear nada: cambia todos
        los cuadros porque el paquete vuela. */
     seed: rndi(0, 9973),
@@ -173,9 +174,10 @@ export function updateProjectiles() {
 
     let gone = b.life <= 0 || b.x < camL - 60 || b.x > camR + 60 || b.y > G.mapH + 120;
 
-    // las teclas del keylogger flotan pegadas a la superficie: no chocan contra
-    // el terreno, se quedan donde cayeron hasta que se agotan
-    if (!gone && !b.key && rectHitsSolid(b.x, b.y, b.w, b.h)) {
+    /* Las teclas del keylogger ya no se quedan flotando donde cayeron: ahora
+       son un disparo como cualquier otro y mueren contra el terreno. Eso es lo
+       que hace que un bloque a media altura valga como parapeto. */
+    if (!gone && rectHitsSolid(b.x, b.y, b.w, b.h)) {
       gone = true;
       if (b.bomb) explode(b.x + b.w / 2, b.y + b.h / 2, 26, 0, 'enemy');
       else {

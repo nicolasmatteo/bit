@@ -1,14 +1,17 @@
-/* Expediente de amenazas: lo que se muestra antes del primer sector.
+/* Expediente de amenazas: el parte que se pasa al entrar a cada sector.
 
    Cada ficha dice QUÉ es la amenaza, nunca CÓMO pelea. Los movimientos y los
    avisos se aprenden jugando — si la ficha los contara, el primer encuentro
    dejaría de ser un descubrimiento y pasaría a ser un examen.
 
-   Van en el orden en que aparecen, sector por sector.
+   Van en el orden en que aparecen, sector por sector. Ningún sector muestra
+   todo el expediente: sólo estrena los procesos que no se cruzaron antes.
 
    `pose` son campos que se le pisan al enemigo de muestra para que se lo vea
    como corresponde: el phishing en su forma real y no disfrazado, el
    exfiltrador con algo en la bolsa. */
+
+import { LEVELS } from './levels.js';
 
 export const BESTIARY = [
   { type: 'spambot', name: 'Spambot', sector: 1,
@@ -62,3 +65,40 @@ export const SECTOR_LAYERS = [
   'perímetro', 'red', 'aplicación', 'sesión', 'sistema', 'sombra', 'datos',
   'control total', 'firmware', 'microcódigo', 'silicio',
 ];
+
+/* ─────────────────────────────── qué estrena cada sector */
+
+/* El mismo reparto de caracteres que hace world.js al construir el nivel. Vive
+   acá duplicado a propósito: el expediente sólo necesita saber QUIÉN aparece,
+   no dónde ni cómo, y así no arrastra medio juego para contarlo. Si allá se
+   suma un proceso hostil, acá también. */
+const ENEMY_CHARS = {
+  s: 'spambot',  h: 'troyano',   t: 'ransomware',
+  k: 'keylogger', K: 'keylogger',
+  g: 'gusano',   n: 'botnet',    i: 'mitm',
+  e: 'exfil',    R: 'rootkit',   y: 'spyware',   a: 'adware',
+  d: 'phishing', v: 'phishing',  x: 'phishing',  r: 'phishing',
+  B: 'monarca',  D: 'baron',     I: 'implante',
+};
+
+const typesBySector = new Map();
+
+/** Los procesos hostiles que hay plantados en el mapa de un sector. */
+export function sectorTypes(index) {
+  let types = typesBySector.get(index);
+  if (types) return types;
+  types = new Set();
+  for (const row of LEVELS[index]?.map ?? [])
+    for (const ch of row) {
+      const t = ENEMY_CHARS[ch];
+      if (t) types.add(t);
+    }
+  typesBySector.set(index, types);
+  return types;
+}
+
+/** Las fichas de ese sector, en el orden del expediente. */
+export function sectorThreats(index) {
+  const types = sectorTypes(index);
+  return BESTIARY.filter(entry => types.has(entry.type));
+}

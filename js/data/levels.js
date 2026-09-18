@@ -12,6 +12,12 @@
    Procesos hostiles
      s  Spambot      h  Troyano       t  Ransomware
      k  Keylogger (suelo)             K  Keylogger (techo)
+        Máquina de escribir: frena, teclea tres teclas a la vista y en la
+        campanilla las transmite apuntadas. Las teclas mueren contra el
+        terreno, así que un bloque suelto de un tile en el piso alcanza como
+        parapeto — y de paso le parte la ronda al del suelo. Poné uno antes de
+        cada uno: sin parapeto, un túnel con tres se vuelve un pasillo de
+        peaje.
      g  Worm         B  Rootkit Monarch     D  Baron Von DDoS
      I  El Implante: el jefe del final. Necesita arena ancha y sin líquido —
         se copia tres veces y las cuatro siluetas tienen que caber separadas.
@@ -88,7 +94,7 @@ export const LEVELS = [
 },
 
 /* ───────────────────────────────────────── 02
-   Capa 2 · red — keyloggers en el túnel (o la azotea), un Man-in-the-Middle que se mete delante del gusano, y al final una botnet: matar al C2 apaga a sus bots. */
+   Capa 2 · red — el primer keylogger está solo y en campo abierto, para verlo teclear sin pagarlo; después el túnel, con dos en el techo y dos en el piso y un parapeto antes de cada pareja. Un Man-in-the-Middle que se mete delante del gusano, y al final una botnet: matar al C2 apaga a sus bots. */
 {
   name: 'Puerto 443',
   epigraph: 'Todo viene cifrado. Alguien anota cada tecla.',
@@ -111,7 +117,7 @@ export const LEVELS = [
     '                             ==== #############################                 =====                             ###################                              =====',
     '                 * *                    K         K                                   i                               K        K                     s',
     '                                                                                                                                                  #######',
-    '   P      c               k                  k         k              ! w     g     ^^               -------               k                      #######        s s s  s  G',
+    '   P      c               k           #      k  #      k              ! w     g     ^^               -------             # k                      #######        s s s  s  G',
     '################     ##########################################     #################################       ###############################     #########     ##################',
     '################~~~~~##########################################~~~~~#################################~~~~~~~###############################~~~~~#########~~~~~##################',
     '################~~~~~##########################################~~~~~#################################~~~~~~~###############################~~~~~#########~~~~~##################',
@@ -191,7 +197,7 @@ export const LEVELS = [
 },
 
 /* ───────────────────────────────────────── 05
-   Capa 5 · sistema operativo — troyanos de a dos, y un techo bajo con keyloggers donde no se los puede saltar. */
+   Capa 5 · sistema operativo — troyanos de a dos, y un techo bajo con keyloggers donde no se los puede saltar: ahí el parapeto no es comodidad, es la única forma de cruzar sin comerse los tres renglones. */
 {
   name: 'El Kernel',
   epigraph: 'Lo que entró como regalo trae algo adentro.',
@@ -214,7 +220,7 @@ export const LEVELS = [
     '                        ======       ======               s                                 ###################                 s              ======',
     '                 * *                                  #########                                  K        K                  #######',
     '                                                      #########                                                              #######',
-    '   P      c                 h    ^^^    h             #########       !     h       h   ^^            k                  h   #######        h         h    ^^     s        G',
+    '   P      c                 h    ^^^    h             #########       !     h       h   ^^     #      k #                h   #######        h         h    ^^     s        G',
     '################     #########################     ############     ############################################     ###############     #######################################',
     '################~~~~~#########################~~~~~############~~~~~############################################~~~~~###############~~~~~#######################################',
     '################~~~~~#########################~~~~~############~~~~~############################################~~~~~###############~~~~~#######################################',

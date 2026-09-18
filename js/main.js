@@ -5,6 +5,7 @@ import { Input, bindTouch } from './input.js';
 import { startLevel, updateGame, advanceLevel, formatTime, levelCount } from './game/game.js';
 import { render, renderMenu, resizeCanvas } from './render/renderer.js';
 import { LEVELS } from './data/levels.js';
+import { sectorThreats } from './data/bestiary.js';
 import { initAudio, resumeAudio, toggleMute, isMuted, setAmbience, stopAmbience } from './audio.js';
 import { buildDossier, stopDossier } from './render/dossier.js';
 
@@ -20,20 +21,29 @@ const elBtn = document.getElementById('ovBtn');
 const elHint = document.getElementById('ovHint');
 const elSound = document.getElementById('soundToggle');
 const elDossier = document.getElementById('ovDossier');
+const elBoard = document.getElementById('ovBoard');
 const elPanel = overlay.querySelector('.panel');
 
 let prevMode = null;
 let pausedFrom = 'play';
 let audioStarted = false;
-/* el menú tiene dos pasos: portada y expediente. Sigue siendo el mismo modo
-   'menu' para el juego — el fondo sigue paneando detrás de las dos */
-let dossierOpen = false;
+/* el menú tiene dos pasos: portada y manual. Sigue siendo el mismo modo 'menu'
+   para el juego — el fondo sigue paneando detrás de los dos */
+let menuStep = 0;
+/* Los procesos hostiles que el jugador ya se cruzó en esta partida. El parte de
+   cada sector presenta sólo lo que estrena: repetir a los conocidos convertiría
+   el expediente en un trámite y le sacaría el peso a la ficha nueva. */
+const met = new Set();
 
 /* ─────────────────────────────── interfaz */
 
-function showOverlay({ eyebrow, title, text, button, hint = '', stats = null, dossier = false }) {
+function showOverlay({ eyebrow, title, text, button, hint = '', stats = null,
+                      dossier = false, board = '' }) {
   elDossier.hidden = !dossier;
   elPanel.classList.toggle('is-wide', dossier);
+  elBoard.innerHTML = board;
+  elBoard.hidden = !board;
+  elPanel.classList.toggle('is-board', !!board);
   if (!dossier) stopDossier();
   elEyebrow.textContent = eyebrow;
   elTitle.innerHTML = title;
@@ -54,48 +64,77 @@ function showOverlay({ eyebrow, title, text, button, hint = '', stats = null, do
   overlay.classList.remove('is-hidden');
 }
 
-const hideOverlay = () => overlay.classList.add('is-hidden');
+function hideOverlay() {
+  overlay.classList.add('is-hidden');
+  stopDossier();   // las fichas no tienen por qué seguir dibujando en juego
+}
 
-/* El tablero de controles se dibuja como el teclado real: las teclas caen donde
-   caen los dedos, con el escalón de cada fila. Izquierda camina, derecha pelea,
-   el pulgar salta. */
+/* El tablero de "cómo se juega". Primero los tres golpes que definen a Bit
+   —parar, saltar dos veces, cruzar encriptado—, en cartelitos con su cinta de
+   color. Abajo la consola: las teclas caen donde caen los dedos, con el
+   escalón de cada fila, y las de pelear van pintadas del color de lo que
+   hacen. El rosa sigue queriendo decir parry en todas las capas. */
 const CONTROLS = `
+<ul class="moves">
+  <li class="move move--pink move--star">
+    <span class="move__tag">Parry</span>
+    <span class="move__glyph" aria-hidden="true">✹</span>
+    <kbd class="move__key">L</kbd>
+    <span class="move__txt">Lo <b>rosa</b> se para y vuelve como disparo tuyo.
+      Devuelve salto, dash y carga la Purga.</span>
+  </li>
+  <li class="move move--gold">
+    <span class="move__tag">Doble salto</span>
+    <span class="move__glyph" aria-hidden="true">▲</span>
+    <kbd class="move__key">espacio</kbd>
+    <span class="move__txt">Otra vez en el aire y Bit gira para subir de nuevo.
+      Se recarga al tocar suelo.</span>
+  </li>
+  <li class="move move--cyan">
+    <span class="move__tag">Dash</span>
+    <span class="move__glyph" aria-hidden="true">»</span>
+    <kbd class="move__key">Shift</kbd>
+    <span class="move__txt">Corto y encriptado: cruza el fuego sin comérselo.
+      Uno por estadía en el aire.</span>
+  </li>
+</ul>
+
 <div class="keys">
   <div class="keys__hands">
 
     <div class="hand">
-      <span class="hand__t">Izquierda · caminar</span>
+      <span class="hand__t">Izquierda · moverse</span>
       <div class="krow">
         <kbd class="key"><b>Q</b><i>arma −</i></kbd>
         <kbd class="key"><b>W</b><i>apuntar ↑</i></kbd>
         <kbd class="key"><b>E</b><i>arma +</i></kbd>
       </div>
       <div class="krow krow--home">
-        <kbd class="key"><b>A</b><i>izquierda</i></kbd>
+        <kbd class="key"><b>A</b><i>◀ caminar</i></kbd>
         <kbd class="key"><b>S</b><i>apuntar ↓</i></kbd>
-        <kbd class="key"><b>D</b><i>derecha</i></kbd>
+        <kbd class="key"><b>D</b><i>caminar ▶</i></kbd>
       </div>
       <div class="krow krow--low">
-        <kbd class="key key--wide"><b>Shift</b><i>dash</i></kbd>
+        <kbd class="key key--wide key--cyan"><b>Shift</b><i>» dash</i></kbd>
       </div>
     </div>
 
     <div class="hand">
       <span class="hand__t">Derecha · pelear</span>
       <div class="krow krow--u">
-        <kbd class="key"><b>U</b><i>purga</i></kbd>
+        <kbd class="key key--teal"><b>U</b><i>◍ purga</i></kbd>
       </div>
       <div class="krow krow--home">
-        <kbd class="key"><b>J</b><i>disparar</i></kbd>
-        <kbd class="key"><b>K</b><i>granada</i></kbd>
-        <kbd class="key key--pink"><b>L</b><i>parry</i></kbd>
+        <kbd class="key key--red"><b>J</b><i>◉ disparar</i></kbd>
+        <kbd class="key key--gold"><b>K</b><i>✦ granada</i></kbd>
+        <kbd class="key key--pink"><b>L</b><i>✹ parry</i></kbd>
       </div>
     </div>
 
   </div>
 
-  <div class="krow">
-    <kbd class="key key--bar"><b>espacio</b><i>saltar · otra vez en el aire, doble salto</i></kbd>
+  <div class="krow krow--bar">
+    <kbd class="key key--bar key--gold"><b>espacio</b><i>▲ saltar · otra vez en el aire, doble salto</i></kbd>
   </div>
 
   <p class="keys__alt">
@@ -109,7 +148,9 @@ const CONTROLS = `
     <kbd>P</kbd> pausa · <kbd>M</kbd> sonido
   </p>
 </div>
-<p class="keys__touch">Botones en pantalla: izquierda camina, derecha pelea.</p>`;
+
+<p class="keys__touch">Botones en pantalla: la mano <b>izquierda</b> camina,
+  la <b>derecha</b> pelea. Cada chapa de acá arriba es el botón que le toca.</p>`;
 
 function menuScreen() {
   showOverlay({
@@ -119,31 +160,71 @@ function menuScreen() {
            con lo único que trae de fábrica: un <i>ping</i>, dos saltos y el
            descaro de devolver lo que le tiran.
            <span class="sep"></span>
-           Lo que viene en <i>rosa</i> se puede parar, y lo que parás vuelve
-           convertido en disparo tuyo. Además carga la Purga.
-           <span class="sep"></span>
            Ocho corazones. Los postes de restauración los reponen y marcan
            dónde volvés si se terminan.`,
-    button: 'Iniciar barrido',
-    hint: CONTROLS,
+    button: 'Cómo se juega',
   });
 }
 
-/**
- * El expediente: quiénes están adentro del sistema, antes de entrar. Cuenta qué
- * es cada amenaza y nunca cómo pelea — eso se descubre jugando.
- */
-function dossierScreen() {
+/** El manual de campo, en su propia página: los tres golpes y la consola. */
+function controlsScreen() {
   showOverlay({
-    eyebrow: 'Expediente de amenazas',
-    title: 'Lo que ya está adentro',
-    text: `Todo esto se coló en el sistema. Algunos se ven venir y otros no.
-           Conocelos antes de cruzártelos.`,
-    button: 'Entrar al perímetro',
+    eyebrow: 'Manual de campo',
+    title: 'Cómo se juega',
+    /* sin bajada: las dos chapas de la consola ya dicen qué hace cada mano */
+    text: '',
+    button: 'Iniciar barrido',
+    board: CONTROLS,
+  });
+  overlay.scrollTop = 0;
+}
+
+/**
+ * El parte del sector: qué procesos estrena este tramo. Cuenta qué es cada uno
+ * y nunca cómo pelea — eso se descubre jugando. Los que ya se cruzaron no
+ * vuelven a la grilla: el parte es para lo que todavía no vio.
+ */
+function briefingScreen(threats) {
+  const one = threats.length === 1;
+  showOverlay({
+    eyebrow: `Sector ${String(G.levelIndex + 1).padStart(2, '0')} · ${G.level.name}`,
+    title: one ? 'Proceso nuevo' : 'Procesos nuevos',
+    text: one
+      ? 'Esto no estaba en los sectores anteriores. Miralo antes de cruzártelo.'
+      : 'Esto no estaba en los sectores anteriores. Miralos antes de cruzártelos.',
+    button: 'Entrar al sector',
     dossier: true,
   });
-  buildDossier(elDossier);
+  /* el cartel se ensancha con la cantidad de fichas: ningún sector estrena más
+     de cuatro, así que siempre entran en una fila */
+  elPanel.style.setProperty('--sheets', Math.min(threats.length, 4));
+  buildDossier(elDossier, threats);
   overlay.scrollTop = 0;
+}
+
+/**
+ * Arranca la partida de cero: el expediente se olvida de todo, así que la
+ * primera vuelta y la segunda presentan lo mismo.
+ */
+function startRun() {
+  met.clear();
+  startLevel(0, false);
+}
+
+/**
+ * El paso entre cargar un sector y jugarlo. Si trae procesos que el jugador no
+ * vio, primero pasa el parte —el mundo queda congelado detrás, con la misma
+ * llave que la pausa— y devuelve `true` para que la capa no se cierre.
+ */
+function enterLevel() {
+  if (G.mode !== 'brief') return false;      // el último sector limpio va a 'win'
+  const fresh = sectorThreats(G.levelIndex).filter(entry => !met.has(entry.type));
+  if (!fresh.length) return false;
+  for (const entry of fresh) met.add(entry.type);
+  pausedFrom = 'brief';
+  G.mode = 'pause';
+  briefingScreen(fresh);
+  return true;
 }
 
 function pauseScreen() {
@@ -152,7 +233,7 @@ function pauseScreen() {
     title: 'En pausa',
     text: 'El proceso sigue cuando vos digas.',
     button: 'Retomar',
-    hint: CONTROLS,
+    board: CONTROLS,
   });
 }
 
@@ -191,20 +272,23 @@ function winScreen() {
 
 elBtn.addEventListener('click', () => {
   startAudio();
-  if (G.mode === 'menu' && !dossierOpen) {
-    dossierOpen = true;
-    dossierScreen();
+  if (G.mode === 'menu' && menuStep < 1) {
+    menuStep = 1;
+    controlsScreen();
     Input.releaseAll();
     return;
   }
+
+  let briefed = false;
   switch (G.mode) {
-    case 'menu':  dossierOpen = false; stopDossier(); startLevel(0, false); break;
+    case 'menu':  menuStep = 0; startRun(); briefed = enterLevel(); break;
     case 'pause': G.mode = pausedFrom; break;
-    case 'clear': advanceLevel(); break;
-    case 'win':   startLevel(0, false); break;
-    default:      startLevel(G.levelIndex); break;
+    case 'clear': advanceLevel(); briefed = enterLevel(); break;
+    case 'win':   startRun(); briefed = enterLevel(); break;
+    default:      startLevel(G.levelIndex); briefed = enterLevel(); break;
   }
-  hideOverlay();
+  /* si el sector estrena procesos, la capa se queda con el parte en pantalla */
+  if (!briefed) hideOverlay();
   prevMode = G.mode;
   Input.releaseAll();
   /* el botón no se queda con el foco: si no, el espacio de saltar lo volvería

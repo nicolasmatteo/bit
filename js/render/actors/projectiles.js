@@ -103,9 +103,9 @@ function bulletBody(ctx, b) {
 }
 
 /**
- * Fuego hostil. Las teclas del keylogger se quedan quietas; los paquetes
- * corruptos son rosados y giran más rápido — el rosa es la única promesa que
- * hace el juego: eso se puede devolver.
+ * Fuego hostil. La tecla del keylogger vuela con la letra que registró; los
+ * paquetes corruptos son rosados y giran más rápido — el rosa es la única
+ * promesa que hace el juego: eso se puede devolver.
  */
 function enemyBullet(ctx, b) {
   const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
@@ -113,19 +113,7 @@ function enemyBullet(ctx, b) {
   if (b.popup) { popupBullet(ctx, b, cx, cy); return; }
   if (b.glyph) { glyphBullet(ctx, b, cx, cy); return; }
 
-  if (b.key) {
-    const fade = Math.min(1, b.life / 30);
-    ctx.save();
-    ctx.globalAlpha = fade;
-    ctx.translate(cx, cy + Math.sin(b.t * 0.08) * 1.4);
-    ctx.rotate(Math.sin(b.t * 0.05) * 0.16);
-    pill(ctx, -b.w / 2, -b.w / 2, b.w, b.w, 1.6);
-    inked(ctx, b.color, 1.4);
-    ctx.fillStyle = INK;
-    ctx.fillRect(-b.w * 0.2, -b.w * 0.2, b.w * 0.4, b.w * 0.4);
-    ctx.restore();
-    return;
-  }
+  if (b.key) { keyBullet(ctx, b, cx, cy); return; }
 
   ctx.save();
   ctx.translate(cx, cy);
@@ -185,6 +173,34 @@ function glyphBullet(ctx, b, cx, cy) {
     inked(ctx, PINK, 1.2);
   }
   label(ctx, ch, 0, size * 0.36, size, b.corrupt ? '#ffffff' : b.color, 'center', '0', 2.4, BODY);
+  ctx.restore();
+}
+
+/* La tecla transmitida: un keycap que cae de canto, girando, con la letra que
+   el keylogger registró. Si viene rosada lleva la estrella de siempre detrás:
+   la letra cambia, la promesa no. */
+function keyBullet(ctx, b, cx, cy) {
+  const r = b.w * 0.9;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(b.t * (b.corrupt ? 0.16 : 0.11) * Math.sign(b.vx || 1));
+
+  if (b.corrupt) {
+    starPath(ctx, 0, 0, r * 1.35, r * 0.7, 7, b.t * 0.05, b.seed);
+    inked(ctx, PINK, 1.2);
+  }
+
+  pill(ctx, -r, -r, r * 2, r * 2, r * 0.42);
+  inked(ctx, b.corrupt ? '#ffffff' : b.color, 1.5);
+  /* el bisel del keycap: la mitad de abajo en sombra */
+  ctx.save();
+  pill(ctx, -r, -r, r * 2, r * 2, r * 0.42);
+  ctx.clip();
+  ctx.fillStyle = rgba(INK, 0.16);
+  ctx.fillRect(-r, r * 0.2, r * 2, r);
+  ctx.restore();
+
+  if (b.letter) label(ctx, b.letter, 0, r * 0.52, r * 1.5, INK, 'center', '0', 0, BODY);
   ctx.restore();
 }
 

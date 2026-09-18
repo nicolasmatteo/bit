@@ -153,23 +153,44 @@ export function spillTrojan(e) {
 }
 
 /* ─────────────────────────────── Keylogger
-   Ciempiés que camina pegado a una superficie — suelo o techo — y va dejando
-   las teclas que registra flotando detrás suyo. Las teclas duelen y duran poco:
-   lo que hacen es cerrarte el camino por donde acaba de pasar. */
+   Una máquina de escribir agarrada de una superficie —suelo o techo— que
+   patrulla hasta tenerte a tiro.
+
+   Antes dejaba teclas quietas por donde pasaba: como iba y venía por la misma
+   línea, el rastro terminaba siendo un charco que se saltaba de una y el bicho
+   no pedía nada a cambio. Ahora hace lo que dice el expediente. Te ve, frena y
+   TECLEA: cada golpe deja una tecla a la vista sobre el rodillo, y ése es el
+   aviso —tres golpes, medio segundo, tiempo de sobra para cortarle la línea o
+   matarlo—. Cuando el renglón se llena suena la campanilla y lo TRANSMITE
+   entero, apuntado, con el rosado al final como todos.
+
+   Lo que registra es lo que te manda: por eso las teclas que vuelan llevan una
+   letra, y por eso no puede seguir caminando mientras escribe. */
+
+const LOG_KEYS = 3;                              // cuántas teclas anota por renglón
+const KEY_CHARS = 'QWERTYUIOPASDFGHJKLZXCVBNM';  // lo que "leyó" del teclado
 
 export function keylogger(e, dx, dy, dist) {
   const s = e.surface;                       // 1 = suelo, -1 = techo
   e.seg += e.speed * 0.42;
+  if (e.strike > 0) e.strike--;
+  if (e.ring > 0) e.ring--;
 
-  /* pegado a la superficie: no cae, se desliza */
-  const step = e.dir * e.speed;
-  moveActor(e, step, 0, { oneway: false });
+  const sees = dist < 300 && Math.abs(dy) < 150;
+  if (sees) e.aggro = 120; else if (e.aggro > 0) e.aggro--;
 
-  /* ¿sigue habiendo superficie adelante? si no, o si choca, da la vuelta */
-  const aheadX = e.dir > 0 ? e.x + e.w + 3 : e.x - 3;
-  const probeY = s > 0 ? e.y + e.h + 4 : e.y - 4;
-  const supported = rectHitsSolid(aheadX - 1, probeY - 1, 2, 2);
-  if (e.hitWall || !supported) e.dir *= -1;
+  /* mientras escribe o transmite no se mueve: el renglón es un compromiso */
+  const busy = e.state === 'registro' || e.burst > 0;
+
+  if (!busy) {
+    const step = e.dir * e.speed;
+    moveActor(e, step, 0, { oneway: false });
+
+    /* ¿sigue habiendo superficie adelante? si no, o si choca, da la vuelta */
+    const aheadX = e.dir > 0 ? e.x + e.w + 3 : e.x - 3;
+    const probeY = s > 0 ? e.y + e.h + 4 : e.y - 4;
+    if (e.hitWall || !rectHitsSolid(aheadX - 1, probeY - 1, 2, 2)) e.dir *= -1;
+  }
 
   /* se despega si le sacaron el piso de abajo (o el techo de arriba) */
   const under = rectHitsSolid(e.x + 2, s > 0 ? e.y + e.h + 1 : e.y - 3, e.w - 4, 2);
@@ -179,11 +200,74 @@ export function keylogger(e, dx, dy, dist) {
     if (e.onGround) e.vy = 0;
   } else e.vy = 0;
 
-  /* rastro de teclas: quietas, breves, y sólo cuando hay alguien cerca */
-  if (dist < 260 && e.t % 16 === 0) {
-    spawnEBullet(e.x + e.w / 2, e.y + e.h / 2, 0, 0,
-      { size: 8, life: 130, key: true, color: '#c9a0ff' });
+  /* la boca del carro: por donde sale el renglón, del lado que mira */
+  const mx = () => e.x + e.w / 2 + e.dir * 9;
+  const my = () => e.y + e.h / 2 + s * 2;
+
+  if (e.state === 'registro') {
+    e.dir = dx > 0 ? 1 : -1;                 // se acomoda mientras escribe
+    if (--e.typeT <= 0) {
+      e.typeT = 13;
+      e.strike = 8;
+      e.log.push(KEY_CHARS[rndi(0, KEY_CHARS.length - 1)]);
+      Sfx.keystroke();
+      FX.spark(mx(), my(), '#c9a0ff', 2, 1.2, [4, 9]);
+
+      if (e.log.length >= LOG_KEYS) {
+        /* campanilla: el renglón está lleno y se va entero */
+        e.state = 'transmite';
+        e.burst = LOG_KEYS - 1;              // el último sale rosado, aparte
+        e.burstCd = 0;
+        e.typeT = 0;                         // pasa a contar la espera del rosado
+        e.ring = 18;
+        Sfx.bell();
+      }
+    }
+    return;
   }
+
+  if (e.burst > 0) {
+    if (--e.burstCd <= 0) {
+      e.burstCd = 10;
+      e.burst--;
+      fireKey(e, e.log.shift(), false);
+
+      /* el rosado sale aparte, PINK_GAP después del último normal */
+      if (e.burst === 0) queueShot(e, PINK_GAP, () => {
+        fireKey(e, e.log.shift() || KEY_CHARS[0], true);
+        e.state = 'patrulla';
+        e.cd = rnd(120, 190);
+      });
+    }
+    return;
+  }
+
+  /* esperando el rosado, que sale de la cola PINK_GAP cuadros después. La
+     cola no corre fuera de cuadro, así que acá hay un tope: sin él, un
+     keylogger al que se le pierde el disparo encolado se queda escribiendo
+     para siempre y deja de ser un enemigo. */
+  if (e.state === 'transmite') {
+    if (++e.typeT > 120) { e.state = 'patrulla'; e.cd = rnd(90, 150); e.log.length = 0; }
+    return;
+  }
+
+  if (--e.cd <= 0 && sees) {
+    e.state = 'registro';
+    e.log.length = 0;
+    e.typeT = 12;
+    Sfx.telegraph();
+  }
+}
+
+/** Una tecla transmitida: apunta al salir, no al escribirse. */
+function fireKey(e, ch, corrupt) {
+  const s = e.surface;
+  const x = e.x + e.w / 2 + e.dir * 9, y = e.y + e.h / 2 + s * 2;
+  const a = aimAt(x, y) + rnd(-0.045, 0.045);
+  const sp = corrupt ? 3.1 : 3.4;
+  spawnEBullet(x, y, Math.cos(a) * sp, Math.sin(a) * sp,
+    { size: 6, life: 220, key: true, letter: ch, corrupt, color: '#c9a0ff' });
+  FX.spark(x, y, corrupt ? '#ff6ec7' : '#c9a0ff', 4, 1.8, [4, 11]);
 }
 
 /* ─────────────────────────────── Worm
