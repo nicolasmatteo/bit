@@ -68,10 +68,19 @@ export const WEAPONS = {
   },
   /* Balance: con 4 de daño empataba al Flood en daño por segundo y encima
      perforaba. Baja a 3 por impacto, pero gana un nicho propio: atraviesa el
-     escudo del troyano. Es el arma para el Kernel. */
+     escudo del troyano. Es el arma para el Kernel.
+
+     Segunda pasada: a 9 cuadros de cadencia el nicho se le había ido de las
+     manos. Veinte de daño por segundo, a cualquier distancia, atravesando lo
+     que sea y por cuatro procesos a la vez — el troyano, que es el tanque del
+     juego, se caía en menos de un segundo y de frente, que es justo lo que el
+     escudo existía para impedir. La cadencia baja a 14 (13 de daño por segundo,
+     por debajo del Flood) y el cargador a 60. No pierde el nicho: sigue siendo
+     la única que perfora, y contra una fila sigue siendo la mejor del arsenal.
+     Deja de ser también la mejor de a uno. */
   escaner: {
     name: 'Escáner', tag: 'perforante',
-    cd: 9, dmg: 3, speed: 10.5, ammo: 80,
+    cd: 14, dmg: 3, speed: 10.5, ammo: 60,
     pellets: 1, spread: 0, size: [14, 3], color: '#c08cff', core: '#f2e8ff', trail: 9, pierce: true,
     shot: 'beam', barrel: 13, kick: 4, flash: 7, flashScale: 1.1, flashPts: 4,
     shells: 0, push: 0.1, shake: 1,

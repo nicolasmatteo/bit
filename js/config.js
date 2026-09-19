@@ -151,5 +151,4 @@ export const TIMING = {
   brief:   150,
   death:   64,
   respawn: 26,
-  lesson:  200,   // el cartel que enseña el parry, la primera vez y nada más
 };

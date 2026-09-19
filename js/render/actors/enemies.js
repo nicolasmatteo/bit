@@ -576,8 +576,8 @@ export function popupWindow(ctx, x, y, w, h, seed, accent = '#3d6ea8') {
 
    Lo que manda el diseño es que se pueda leer QUÉ trae adentro antes de
    abrirlo. Tiene tres ventanillas en el costado y en cada una se ve la silueta
-   de un pasajero: la tecla del Keylogger, el ojo del Gusano, la cerradura del
-   Ransomware. Van apagadas mientras el caballo está entero y se encienden —y
+   de un pasajero: la tecla del Keylogger, el ojo del Gusano, el espejo del
+   Man-in-the-Middle. Van apagadas mientras el caballo está entero y se encienden —y
    golpean el vidrio— a medida que se le cae la vida. Cuando revienta no hay
    sorpresa: sale exactamente lo que estabas mirando hace rato (ver spillTrojan).
 
@@ -586,7 +586,7 @@ export function popupWindow(ctx, x, y, w, h, seed, accent = '#3d6ea8') {
 const VENTANILLAS = [
   { x: -13, glifo: 'tecla' },      // Keylogger
   { x: -1,  glifo: 'ojo' },        // Gusano
-  { x: 11,  glifo: 'cerradura' },  // Ransomware
+  { x: 11,  glifo: 'espejo' },     // Man-in-the-Middle
 ];
 
 function troyano(ctx, e, th, hostile, flash) {
@@ -808,7 +808,7 @@ function troyano(ctx, e, th, hostile, flash) {
  * aprenderlo: ya lo sabés de haberlos peleado.
  */
 function portilla(ctx, px, py, glifo, desperto, flash, dark) {
-  const luz = { tecla: '#c9a0ff', ojo: '#9fe86a', cerradura: '#6ce8ff' }[glifo];
+  const luz = { tecla: '#c9a0ff', ojo: '#9fe86a', espejo: '#9fe8ff' }[glifo];
   ctx.save();
   ctx.translate(px, py);
 
@@ -842,13 +842,13 @@ function portilla(ctx, px, py, glifo, desperto, flash, dark) {
     ctx.fillStyle = flash ? '#b0763a' : '#16190f';
     ctx.beginPath(); ctx.arc(0.9, -0.4, 1.1, 0, 6.283); ctx.fill();
   } else {
-    /* la cerradura del ransomware */
-    ctx.beginPath(); ctx.arc(0, -0.8, 1.5, 0, 6.283); ctx.fill();
+    /* el Man-in-the-Middle: su cuerpo chato y, al lado, el arco del espejo con
+       el que devuelve lo que le tirás de frente */
+    ctx.beginPath(); ctx.ellipse(-0.8, 0.2, 2, 2.4, 0, 0, 6.283); ctx.fill();
     ctx.beginPath();
-    ctx.moveTo(-1.5, 2.6); ctx.lineTo(-0.7, -0.2);
-    ctx.lineTo(0.7, -0.2); ctx.lineTo(1.5, 2.6);
-    ctx.closePath();
-    ctx.fill();
+    ctx.arc(-0.4, 0.2, 3.1, -1.15, 1.15);
+    ctx.lineWidth = 1.3;
+    ctx.stroke();
   }
   ctx.restore();
 

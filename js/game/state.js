@@ -50,11 +50,6 @@ export const G = {
   gravMul: 1,
   stateT: 0,           // frames dentro del modo actual
 
-  /* Lo que el juego ya enseñó en esta partida. Se limpia al empezar de nuevo y
-     no al cambiar de sector: una lección se da una sola vez. */
-  taught: { parry: false },
-  lesson: 0,           // frames que le quedan al cartel de la lección
-
   stats: { shards: 0, shardsTotal: 0, kills: 0, deaths: 0, frames: 0 },
   run:   { deaths: 0, shards: 0, frames: 0 },
 

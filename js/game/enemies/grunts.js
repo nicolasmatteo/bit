@@ -166,9 +166,18 @@ export function troyano(e, dx, dy, dist) {
    abrís — y por eso ahora se lo ve venir de lejos y se lo ve por dentro: las
    tres ventanillas del costado muestran quién viene (ver el dibujo).
 
+   La lista tiene una regla que no es de dificultad sino de orden: el caballo no
+   puede desembarcar nada que el jugador no haya visto todavía. Llevaba un
+   ransomware, y el troyano abre en el sector 05 mientras que el ransomware
+   recién entra en el 07 — así que lo primero que se sabía de él era que salía
+   de una caja, sin ficha, sin parte y sin nombre. En su lugar viaja un
+   Man-in-the-Middle, que ya se cruzó en el 02 y que además cambia la pelea
+   cuando sale: se pone delante de los otros dos y te devuelve lo que tirás de
+   frente.
+
    Tocar esta lista es toda la perilla de dificultad que tiene. */
-const CARGA = ['keylogger', 'gusano', 'ransomware'];
-const CARGA_COLOR = { keylogger: '#c9a0ff', gusano: '#9fe86a', ransomware: '#6ce8ff' };
+const CARGA = ['keylogger', 'gusano', 'mitm'];
+const CARGA_COLOR = { keylogger: '#c9a0ff', gusano: '#9fe86a', mitm: '#9fe8ff' };
 
 /** La carga del troyano: lo llama combat.js al matarlo. */
 export function spillTrojan(e) {
@@ -179,9 +188,11 @@ export function spillTrojan(e) {
     const o = spawnEnemy(tipo, cx + off, feet);
 
     /* spawnEnemy planta por el borde izquierdo; acá lo que se quiere es que cada
-       pasajero quede centrado en su hueco. El `homeX` va con él: el ransomware
-       flota alrededor de ese punto, y si se corre uno sin el otro queda derivando
-       hacia donde nunca estuvo. */
+       pasajero quede centrado en su hueco. El `homeX` va con él para el que lo
+       tenga: el que flota orbita ese punto, y si se corre uno sin el otro queda
+       derivando hacia donde nunca estuvo. Hoy ninguno de los tres lo usa —lo
+       usaba el ransomware—, pero la lista de carga es una perilla y el día que
+       vuelva a viajar uno que flote, esto tiene que seguir estando. */
     const shift = -o.w / 2;
     o.x += shift;
     if (o.homeX !== undefined) o.homeX += shift;

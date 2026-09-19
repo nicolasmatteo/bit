@@ -142,9 +142,6 @@ export function drawHud(ctx) {
   /* ── cartel de misión ── */
   if (G.mode === 'brief') drawBrief(ctx, w, h);
 
-  /* ── la lección del parry ── */
-  if (G.lesson > 0) drawLesson(ctx, w, h);
-
   /* ── velo de muerte ── */
   if (G.mode === 'dying') {
     const k = clamp(G.stateT / TIMING.death, 0, 1);
@@ -166,26 +163,6 @@ export function drawHud(ctx) {
     ctx.fillStyle = 'rgba(24,16,10,.4)';
     ctx.fillRect(0, 0, w, h);
   }
-}
-
-/**
- * La lección del parry, la primera vez que aparece un paquete rosado.
- *
- * La placa es rosa a propósito: en este juego el rosa significa una sola cosa,
- * y el cartel que la explica no iba a ser la excepción. Va arriba y al centro,
- * lejos de los corazones y de las claves, y se va solo.
- */
-function drawLesson(ctx, w, h) {
-  const t = G.lesson, dur = TIMING.lesson;
-  const a = Math.min(clamp((dur - t) / 14, 0, 1), clamp(t / 30, 0, 1));
-  const cw = Math.min(300, w * 0.66), cx = (w - cw) / 2, cy = h * 0.2;
-
-  ctx.save();
-  ctx.globalAlpha = a;
-  plaque(ctx, cx, cy, cw, 42, '#ff6ec7');
-  label(ctx, 'LO ROSA SE PARA', w / 2, cy + 19, 13, INK, 'center', '0.14em', 3);
-  label(ctx, 'L  ·  V    —    Y VUELVE COMO TUYO', w / 2, cy + 33, 9, INK, 'center', '0.12em', 0, BODY);
-  ctx.restore();
 }
 
 /** Cartel de sector: banderola de cartón con el nombre y su epígrafe. */

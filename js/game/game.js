@@ -17,8 +17,7 @@ export const levelCount = LEVELS.length;
 
 export function startLevel(index, keepRun = true) {
   G.levelIndex = clamp(index, 0, LEVELS.length - 1);
-  if (!keepRun) { G.run = { deaths: 0, shards: 0, frames: 0 }; G.taught.parry = false; }
-  G.lesson = 0;
+  if (!keepRun) G.run = { deaths: 0, shards: 0, frames: 0 };
 
   buildLevel(LEVELS[G.levelIndex]);
   buildTerrain();
@@ -95,29 +94,7 @@ function step() {
   updateProjectiles();
   updateFx();
   trackCamera(0.1);
-  if (G.lesson > 0) G.lesson--;
-  teachParry();
   checkExit();
-}
-
-/**
- * El parry es el verbo central del juego y no había nada que lo dijera: el
- * primer paquete rosa aparecía en el sector 1 y o lo entendías ahí o te lo
- * comías. La primera vez que uno entra en cuadro, el tiempo se espesa un
- * momento y sale un cartel. Una vez por partida — es una lección, no un
- * recordatorio —, y se dispara con lo que se ve, no con el nivel que sea: si
- * algún día el primer rosado aparece antes, la lección lo sigue sola.
- */
-function teachParry() {
-  if (G.taught.parry) return;
-  const left = G.cam.x - 10, right = G.cam.x + G.view.w + 10;
-  for (const b of G.ebullets) {
-    if (!b.corrupt || b.x < left || b.x > right) continue;
-    G.taught.parry = true;
-    G.lesson = TIMING.lesson;
-    G.slowmo = Math.max(G.slowmo, 40);
-    return;
-  }
 }
 
 /**
