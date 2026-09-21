@@ -87,8 +87,18 @@ export const WEAPONS = {
   },
 };
 
-/* Lo que puede salir de un depósito de herramientas. */
-export const DROP_POOL = ['flood', 'antivirus', 'firewall', 'escaner'];
+/* Lo que cuesta cada herramienta, en fragmentos de clave.
+   Hay 55 fragmentos en todo el juego y las cuatro suman 47: una vuelta completa
+   alcanza para todas, con poco margen. El orden de los precios es el orden en
+   que conviene comprarlas, y el Flood vale exactamente lo que da el primer
+   sector — juntar los cinco de El Perímetro se paga con un arma de verdad
+   inmediatamente, que es la lección que la economía tiene que enseñar primero. */
+export const TOOL_PRICE = {
+  flood:     5,
+  antivirus: 10,
+  escaner:   14,
+  firewall:  18,
+};
 
 /** Orden fijo del arsenal: define los slots 1–5 y el ciclo Q/E. */
 export const WEAPON_ORDER = Object.keys(WEAPONS);

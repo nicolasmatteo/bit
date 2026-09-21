@@ -226,6 +226,42 @@ export function spillTrojan(e) {
    Cae, y si lo dejás tocar el suelo y quedarse un rato, se parte en dos.
    Es un reloj: o lo matás rápido o el problema se multiplica. */
 
+/**
+ * Cuánto tiene que correrse este gusano para no quedar encima de otro.
+ *
+ * Todos van al mismo sitio —Bit— y ninguno choca con los demás, así que sin
+ * esto terminaban apilados en la misma columna: parecían uno solo, se los
+ * mataba de a montones con un tiro y el que partía dejaba a su cría adentro
+ * del cuerpo del padre.
+ *
+ * Empuja por el costado y sólo contra los que están a la misma altura: dos
+ * gusanos en pisos distintos no se estorban, y separarlos ahí los sacaría de
+ * plataformas donde estaban bien. El empujón se suma al paso normal en vez de
+ * moverlos aparte, así queda un solo movimiento por cuadro y sigue pasando por
+ * el mismo control de paredes y de bordes que todo lo demás.
+ */
+function separacion(e) {
+  let empuje = 0;
+  for (const o of G.enemies) {
+    if (o === e || o.dead || o.type !== 'gusano') continue;
+    const dy = (e.y + e.h / 2) - (o.y + o.h / 2);
+    if (Math.abs(dy) > e.h) continue;
+    const dx = (e.x + e.w / 2) - (o.x + o.w / 2);
+    const solape = e.w + 1 - Math.abs(dx);
+    if (solape <= 0) continue;
+    /* Exactamente encimados —al nacer una cría pasa— no hay lado hacia dónde
+       ir: se desempata con la semilla de cada uno, que es fija, para que uno
+       salga para cada lado en vez de los dos para el mismo. */
+    const lado = dx !== 0 ? Math.sign(dx) : (e.t % 2 ? 1 : -1);
+    /* El tope es el doble del paso del gusano (0.8) a propósito. Con un empujón
+       más flojo que el tirón hacia Bit los dos se equilibran ADENTRO del cuerpo
+       del otro: quedan pegados a dos píxeles y el problema sigue, sólo que con
+       vibración. Para despegarse, despegarse tiene que ganar. */
+    empuje += lado * Math.min(solape * 0.5, 1.6);
+  }
+  return empuje;
+}
+
 export function gusano(e, dx, dy, dist) {
   e.vy = Math.min(e.vy + 0.5, 10);
   const toward = Math.sign(dx) || e.dir;
@@ -234,7 +270,13 @@ export function gusano(e, dx, dy, dist) {
      borde. Sin esto era el que más se perdía: como sigue a Bit sin importarle el
      terreno, alcanzaba con pararse del otro lado de un pozo para que se tirara
      solo, y cada uno perdido se quedaba con un lugar del cupo de MAX_WORMS. */
-  moveActor(e, safeStepX(e, toward * e.speed), e.vy, { oneway: false });
+  /* Mientras esté encima de otro, sacárselo de encima le gana a perseguir: el
+     tirón hacia Bit se achica. Si los dos pesaran igual, el gusano de atrás
+     seguiría empujando al de adelante contra el jugador y la pila no se
+     deshace nunca. */
+  const apartar = separacion(e);
+  const tiron = toward * e.speed * (apartar ? 0.3 : 1);
+  moveActor(e, safeStepX(e, tiron + apartar), e.vy, { oneway: false });
   e.anim += 0.2;
 
   if (!e.onGround) { e.split = Math.max(e.split, 90); return; }
@@ -242,11 +284,22 @@ export function gusano(e, dx, dy, dist) {
   if (--e.split <= 0) {
     const alive = G.enemies.reduce((n, o) => n + (!o.dead && o.type === 'gusano' ? 1 : 0), 0);
     if (alive < MAX_WORMS && e.gen < 3) {
-      const child = spawnEnemy('gusano', e.x, e.y + e.h);
+      /* La cría nace AL LADO y no encima. Antes salía en la misma x que el
+         padre y se le confiaba la separación a `child.vx`, que nunca movió a
+         nadie: la IA del gusano no lee `vx`, camina con su propio paso. Así que
+         nacían superpuestos y se quedaban así.
+         Se prueba el lado de atrás primero —el padre va hacia Bit, la cría
+         queda detrás— y si ahí hay roca, el otro. Si los dos están tapados sale
+         encima, y de eso ya se encarga `separacion`. */
+      const hueco = e.w + 3;
+      let cx = e.x - toward * hueco;
+      if (rectHitsSolid(cx, e.y, e.w, e.h)) cx = e.x + toward * hueco;
+      if (rectHitsSolid(cx, e.y, e.w, e.h)) cx = e.x;
+
+      const child = spawnEnemy('gusano', cx, e.y + e.h);
       child.gen = e.gen + 1;
       child.hp = child.maxHp = Math.max(2, e.maxHp - 1);
       child.vy = -4.4;
-      child.vx = -e.dir * 1.6;
       child.split = 170;
       G.enemies.push(child);
       FX.pop(e.x + e.w / 2, e.y + e.h / 2, '#9fe86a', 16, { life: 12, points: 6 });

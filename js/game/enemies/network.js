@@ -180,6 +180,13 @@ export function exfil(e, dx, dy, dist) {
     if (out) {
       e.dead = true;
       e.escaped = true;
+      /* Lo que se lleva sale del mundo, así que la cerradura de la salida deja
+         de pedirlo: si siguiera pidiendo el total original, un robo consumado
+         dejaría el sector sin salida y sin forma de arreglarlo. El robo se paga
+         en billetera —esos fragmentos no se cobran nunca— pero jamás en paso.
+         Matarlo antes de que cruce el borde los devuelve, y con ellos el
+         requisito vuelve a subir. */
+      G.stats.shardsTotal = Math.max(G.stats.shards, G.stats.shardsTotal - e.stolen);
     }
     return;
   }

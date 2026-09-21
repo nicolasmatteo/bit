@@ -3,6 +3,7 @@
 import { TIMING, PLAYER } from '../config.js';
 import { G, P, resetPlayer } from './state.js';
 import { LEVELS } from '../data/levels.js';
+import { WEAPONS } from '../data/weapons.js';
 import { buildLevel, updateMovers, breakAllLocks } from './world.js';
 import { updatePlayer } from './player.js';
 import { updateEnemies, activeBoss } from './enemies.js';
@@ -14,6 +15,12 @@ import { Sfx } from '../audio.js';
 import { clamp, aabb, lerp } from '../util.js';
 
 export const levelCount = LEVELS.length;
+
+/* Las herramientas compradas, puestas acá desde main.js al cargar el guardado.
+   game.js no lee el disco: sólo sabe con qué arranca Bit, y a quién se lo
+   pregunta es asunto de quien arma la partida. */
+let ownedTools = [];
+export function setOwnedTools(list) { ownedTools = Array.isArray(list) ? list : []; }
 
 export function startLevel(index, keepRun = true) {
   G.levelIndex = clamp(index, 0, LEVELS.length - 1);
@@ -28,6 +35,14 @@ export function startLevel(index, keepRun = true) {
   resetPlayer(G.spawn.x, G.spawn.y);
   P.weapon = 'ping';
   P.weapons = { ping: Infinity };
+  /* Lo comprado viene con medio cargador, no con el cargador lleno. Entrar a
+     cada sector con todo el arsenal a tope volvería decorativos a los depósitos
+     y a la munición: se compra el ACCESO a la herramienta, la munición se sigue
+     buscando en el mapa. */
+  for (const tool of ownedTools) {
+    if (!WEAPONS[tool] || tool === 'ping') continue;
+    P.weapons[tool] = Math.ceil(WEAPONS[tool].ammo * 0.5);
+  }
   P.ammo = Infinity;
   P.grenades = PLAYER.startGrenades;
   P.meter = 0;
@@ -68,7 +83,9 @@ export function updateGame() {
       updateProjectiles();
       updateFx();
       trackCamera(0.05);
-      if (G.stateT >= TIMING.death) respawn();
+      /* el chapuzón dura menos que la muerte: no perdiste nada, no hay por qué
+         hacerte esperar lo mismo */
+      if (G.stateT >= (P.hp > 0 ? TIMING.sink : TIMING.death)) respawn();
       break;
 
     case 'menu':
@@ -108,7 +125,23 @@ function step() {
  * nada más.
  */
 function respawn() {
+  /* Acá se decide qué fue lo que pasó, mirando lo único que hace falta mirar:
+     la integridad que quedó.
+
+       cero      te quedaste sin vida → el sector arranca de nuevo, entero
+       más que cero  te caíste (agua o pozo) → volvés al último poste con la
+                     vida intacta, que no te cobró nada
+
+     Va con un `if` sobre `P.hp` y no con una bandera aparte porque una bandera
+     hay que ponerla y apagarla en los dos caminos, y el día que uno se olvide
+     el jugador pierde el sector por un chapuzón. */
+  if (P.hp <= 0) { restartLevel(); return; }
+
+  /* El agua no cobra integridad, y resetPlayer la llena: se guarda y se
+     devuelve. Sin esto, caerse al agua sería una cura gratis. */
+  const vida = P.hp;
   resetPlayer(G.spawn.x, G.spawn.y);
+  P.hp = vida;
   G.ebullets.length = 0;
   G.bullets.length = 0;
   G.grenades.length = 0;
@@ -123,9 +156,25 @@ function respawn() {
   G.stateT = 0;
 }
 
+/**
+ * ¿Está abierta la salida? Pide la clave entera: todos los fragmentos que
+ * queden en el sector.
+ *
+ * "Los que queden" y no "los que había" es lo que evita el encierro. Un
+ * Exfiltrador que se escapa se lleva fragmentos del mundo para siempre, y si la
+ * cerradura siguiera pidiendo el total original, ese robo dejaría el sector sin
+ * salida. Al escaparse baja también `shardsTotal` (ver exfil), así que la
+ * cerradura pide lo que todavía se puede juntar. El robo cuesta plata —esos
+ * fragmentos no entran a la billetera nunca— pero nunca cuesta el paso.
+ */
+export function exitOpen() {
+  return G.stats.shards >= G.stats.shardsTotal;
+}
+
 function checkExit() {
   if (!G.goal || P.dead) return;
   if (activeBoss()) return;
+  if (!exitOpen()) return;
   if (!aabb(P, G.goal)) return;
 
   G.run.deaths += G.stats.deaths;

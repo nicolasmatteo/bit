@@ -9,7 +9,7 @@ import { Input } from '../input.js';
 import { moveActor, rectHitsSolid, breakAllLocks, solidAt, encrypted } from './world.js';
 import { WEAPONS, WEAPON_ORDER } from '../data/weapons.js';
 import { spawnBullet, throwGrenade } from './projectiles.js';
-import { damagePlayer, killPlayer, randomWeapon, damageEnemy } from './combat.js';
+import { damagePlayer, killPlayer, sinkPlayer, damageEnemy } from './combat.js';
 import * as FX from './fx.js';
 import { Sfx } from '../audio.js';
 import { aabb, clamp, rnd, lerp, springTo } from '../util.js';
@@ -174,10 +174,13 @@ export function updatePlayer() {
   // con el pozo del Monarca abierto la arena tira hacia arriba, y los mapas no
   // tienen techo: sin este tope Bit se va del nivel por el borde superior
   if (P.y < 0) { P.y = 0; if (P.vy < 0) P.vy = 0; }
-  if (P.y > G.mapH + 60) { killPlayer(); return; }
+  /* Caerse del mapa es caerse, igual que el agua: vuelve al poste y no cuesta
+     integridad. Antes mataba, y matar ahora significa reiniciar el sector
+     entero — un pozo no puede costar tanto como quedarse sin vida. */
+  if (P.y > G.mapH + 60) { sinkPlayer(); return; }
 
-  for (const s of G.spikes) if (aabb(P, s)) damagePlayer(2, P.x + P.w / 2 - P.face);
-  for (const z of G.hazards) if (aabb(P, z)) { killPlayer(); return; }
+  for (const s of G.spikes) if (aabb(P, s)) damagePlayer(1, P.x + P.w / 2 - P.face);
+  for (const z of G.hazards) if (aabb(P, z)) { sinkPlayer(); return; }
 
   checkPickups();
   checkCheckpoints();
@@ -596,6 +599,43 @@ function lobGrenade() {
   logAction(ACT.TIRO);      // para la cinta, una granada es un ataque como cualquier otro
 }
 
+/* Cuánto carga un depósito, como fracción del cargador de esa herramienta. */
+const DEPOSIT_REFILL = 0.4;
+
+/** ¿Es tuya y se le puede cargar munición? El Ping no cuenta: es infinito. */
+function propia(key) {
+  return key !== 'ping' && !!WEAPONS[key] && P.weapons[key] !== undefined;
+}
+
+/**
+ * A quién le toca la munición de este depósito.
+ *
+ * Un depósito no entrega herramientas: sólo carga las que ya llevás. Las
+ * herramientas se compran con fragmentos de clave al cerrar un sector, y ése
+ * es el único lugar donde se consiguen. Si el depósito prestara, comprar sería
+ * optativo y el sector pagaría lo mismo que la billetera.
+ *
+ *   1. si el mapa lo marcó (la `E` del Escáner) y esa herramienta ya es tuya;
+ *      si el Escáner no lo compraste, el depósito no se desperdicia: sigue la
+ *      cadena y carga otra cosa tuya
+ *   2. si no, a la que llevás en la mano
+ *   3. si llevás el Ping —munición infinita, nada que cargarle— a la tuya más
+ *      vacía, medida en fracción de cargador
+ *   4. si no tenés ninguna, `null`: el depósito sólo da la granada
+ */
+function depositTool(p) {
+  if (p.weapon && propia(p.weapon)) return p.weapon;
+  if (propia(P.weapon)) return P.weapon;
+
+  let peor = null, menos = Infinity;
+  for (const key of Object.keys(P.weapons)) {
+    if (!propia(key)) continue;
+    const frac = P.weapons[key] / WEAPONS[key].ammo;
+    if (frac < menos) { menos = frac; peor = key; }
+  }
+  return peor;
+}
+
 function checkPickups() {
   for (let i = G.pickups.length - 1; i >= 0; i--) {
     const p = G.pickups[i];
@@ -608,15 +648,22 @@ function checkPickups() {
       FX.spark(p.x + p.w / 2, p.y + p.h / 2, '#8fe6a0', 12, 2.2);
       Sfx.pickup();
     } else if (p.kind === 'arma') {
-      /* el depósito normal sortea; el que el mapa marcó con `E` trae la suya */
-      const picked = p.weapon || randomWeapon();
-      P.weapons[picked] = WEAPONS[picked].ammo;   // se suma al arsenal, no reemplaza lo que ya tenías
-      P.weapon = picked;
-      P.ammo = P.weapons[picked];
+      /* Sin herramienta que cargar el depósito no queda muerto: siempre da la
+         granada, que la tiene cualquiera. Lo que no hace nunca es regalar una
+         herramienta — eso se paga con claves. */
+      const picked = depositTool(p);
+      if (picked) {
+        const tope = WEAPONS[picked].ammo;
+        P.weapons[picked] = Math.min(tope, P.weapons[picked] + Math.ceil(tope * DEPOSIT_REFILL));
+        P.weapon = picked;
+        P.ammo = P.weapons[picked];
+        FX.spark(p.x + p.w / 2, p.y + p.h / 2, WEAPONS[picked].color, 16, 2.8);
+        FX.ring(p.x + p.w / 2, p.y + p.h / 2, 26, WEAPONS[picked].color, { life: 18, width: 1.6 });
+        FX.flash(3, WEAPONS[picked].color);
+      } else {
+        FX.spark(p.x + p.w / 2, p.y + p.h / 2, G.theme.accent, 10, 2);
+      }
       P.grenades = Math.min(PLAYER.maxGrenades, P.grenades + 1);
-      FX.spark(p.x + p.w / 2, p.y + p.h / 2, WEAPONS[picked].color, 16, 2.8);
-      FX.ring(p.x + p.w / 2, p.y + p.h / 2, 26, WEAPONS[picked].color, { life: 18, width: 1.6 });
-      FX.flash(3, WEAPONS[picked].color);
       Sfx.pickup();
     } else {
       G.stats.shards++;

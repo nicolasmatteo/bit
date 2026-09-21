@@ -149,6 +149,7 @@ export const KEYLOG = {
 /* Duraciones de la máquina de estados (frames). */
 export const TIMING = {
   brief:   150,
-  death:   64,
+  death:   64,   // sin integridad: el velo se cierra y el sector arranca de nuevo
+  sink:    30,   // caída al agua o a un pozo: vuelta al poste, y más corta
   respawn: 26,
 };

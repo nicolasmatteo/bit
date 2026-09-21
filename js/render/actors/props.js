@@ -101,12 +101,12 @@ export function drawCheckpoints(ctx) {
   }
 }
 
-export function drawGoal(ctx, bossAlive) {
+export function drawGoal(ctx, bossAlive, faltan = 0) {
   const g = G.goal;
   if (!g) return;
   const th = G.theme;
   const cx = g.x + g.w / 2;
-  const open = !bossAlive;
+  const open = !bossAlive && faltan <= 0;
   const pulse = open ? 0.5 + Math.sin(G.tick * 0.05) * 0.22 : 0.08;
 
   pill(ctx, g.x - 4, g.y - 6, 5.5, g.h + 6, 1.8);
@@ -134,5 +134,44 @@ export function drawGoal(ctx, bossAlive) {
     glow(ctx, cx, g.y + g.h - 6, 30, th.accent, 0.4);
   }
   ctx.restore();
+
+  /* Cerrada por fragmentos: la cerradura y cuántos faltan, encima del marco.
+     El número va en la puerta y no sólo en el HUD porque es acá donde el
+     jugador se entera de que no puede pasar — si el dato estuviera sólo en la
+     esquina de la pantalla, el primero que llegue a una salida que no se abre
+     va a pensar que el juego se colgó. */
+  if (!bossAlive && faltan > 0) {
+    ctx.save();
+    ctx.translate(cx, g.y - 24);
+
+    const pulso = 0.6 + Math.sin(G.tick * 0.08) * 0.25;
+    ctx.globalAlpha = 0.9;
+
+    /* el cuerpo del candado */
+    pill(ctx, -7, -4, 14, 12, 2.2);
+    inked(ctx, th.accent, LW);
+    /* el arco */
+    ctx.beginPath();
+    ctx.arc(0, -4, 4.6, Math.PI, 0);
+    ctx.strokeStyle = INK; ctx.lineWidth = LW + 1.4; ctx.lineCap = 'round';
+    ctx.stroke();
+    ctx.strokeStyle = th.accent; ctx.lineWidth = LW - 0.4;
+    ctx.stroke();
+    /* el ojo de la cerradura */
+    disc(ctx, 0, 2, 1.8, INK, 0);
+
+    /* cuántos faltan, en palitos: uno por fragmento, para no depender de leer */
+    const n = Math.min(faltan, 9);
+    for (let i = 0; i < n; i++) {
+      const bx = (i - (n - 1) / 2) * 4.4;
+      ctx.globalAlpha = 0.5 + pulso * 0.5;
+      ctx.fillStyle = th.accent;
+      ctx.fillRect(bx - 1.1, 11, 2.2, 5);
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = rgba(INK, 0.7); ctx.lineWidth = 0.8;
+      ctx.strokeRect(bx - 1.1, 11, 2.2, 5);
+    }
+    ctx.restore();
+  }
 }
 

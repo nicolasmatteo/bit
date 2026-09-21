@@ -62,7 +62,7 @@ export function render(ctx) {
   drawMovers(ctx);
   drawLocks(ctx);          // encima del piso que anulan, debajo de todo lo vivo
   drawCheckpoints(ctx);
-  drawGoal(ctx, !!activeBoss());
+  drawGoal(ctx, !!activeBoss(), G.stats.shardsTotal - G.stats.shards);
   drawCrates(ctx);
   drawPickups(ctx);
   drawParticles(ctx, 'back');

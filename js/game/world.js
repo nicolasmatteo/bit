@@ -104,8 +104,8 @@ export function buildLevel(level) {
         case 'w':
           G.pickups.push(mkPickup('arma', x, foot));
           break;
-        /* Depósito con la herramienta fijada. Un sector cuya solución es el
-           Escáner no puede depender de que el sorteo lo saque. */
+        /* Depósito con la herramienta fijada: carga el Escáner, y sólo si ya
+           lo compraste. Un depósito nunca entrega una herramienta. */
         case 'E': {
           const dep = mkPickup('arma', x, foot);
           dep.weapon = 'escaner';

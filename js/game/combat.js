@@ -2,10 +2,9 @@
    no tengan que conocerse entre sí. */
 
 import { G, P } from './state.js';
-import { aabb, rnd, pick } from '../util.js';
+import { aabb, rnd } from '../util.js';
 import * as FX from './fx.js';
 import { Sfx } from '../audio.js';
-import { DROP_POOL } from '../data/weapons.js';
 import { spillTrojan, surface, spawnEnemy, splitImplante, endCopias, shieldHit } from './enemies.js';
 import { dropLock } from './world.js';
 
@@ -24,6 +23,16 @@ export function damagePlayer(amount, fromX = null) {
   if (P.hp <= 0) killPlayer();
 }
 
+/* Caerse y morirse son dos cosas distintas, y el juego las trata distinto.
+
+   Los dos pasan por el modo 'dying', pero lo que decide qué hacer después no es
+   una bandera aparte: es la integridad que quedó. Con integridad en cero el
+   sector se reinicia entero; con integridad todavía arriba de cero —el agua, un
+   pozo— se vuelve al último poste de restauración sin pagar nada. Así no hay
+   dos estados que mantener en sincronía: el que reaparece mira la vida y decide
+   (ver respawn en game.js). */
+
+/** Sin integridad. El sector se reinicia. */
 export function killPlayer() {
   if (P.dead) return;
   P.dead = true;
@@ -37,6 +46,30 @@ export function killPlayer() {
   FX.shake(12);
   FX.flash(8, '#ffffff');
   Sfx.boom();
+}
+
+/**
+ * Te fuiste al agua o a un pozo. No cuesta integridad: te devuelve al último
+ * poste y seguís con la vida que tenías.
+ *
+ * Se anota como caída igual —es una— pero se ve y se oye distinto de una
+ * muerte: nada de bola de fuego ni de sacudón, sólo el chapuzón y el tirón
+ * hacia atrás. Si las dos cosas se vieran iguales, el jugador no tendría cómo
+ * saber que una le costó el sector y la otra no.
+ */
+export function sinkPlayer() {
+  if (P.dead) return;
+  P.dead = true;
+  G.mode = 'dying';
+  G.stateT = 0;
+  G.stats.deaths++;
+  G.slowmo = 16;
+  const cx = P.x + P.w / 2, cy = P.y + P.h / 2;
+  FX.ring(cx, cy, 44, G.theme.liquid ? G.theme.liquid[2] : '#6ce8ff', { life: 26, width: 3, alpha: 0.9 });
+  FX.spark(cx, cy, '#cfe9ff', 16, 2.8, [12, 28]);
+  FX.flash(3, '#9fd8ff');
+  FX.shake(4);
+  Sfx.hurt();
 }
 
 /**
@@ -240,4 +273,3 @@ export function explode(x, y, radius, damage, hits = 'player') {
   }
 }
 
-export function randomWeapon() { return pick(DROP_POOL); }
